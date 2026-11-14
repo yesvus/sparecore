@@ -38,11 +38,17 @@ assert info["cpu_limit"] <= 2, "CPU limit too high"
 assert info["memory_limit_mib"] <= 2048, "memory limit too high"
 assert info["disk_limit_bytes"] <= 20 * 1024**3, "disk limit too high"
 '
+# Never take over an existing user's running machine.
+state=$(orb info -f json "$machine" | /usr/bin/python3 -c 'import json,sys;print(json.load(sys.stdin)["record"]["state"])')
+if [[ "$state" != "stopped" ]]; then
+    echo "NO-GO: machine is already $state"; exit 3
+fi
 echo "Safe preflight: AC, thermal, memory, policy and OrbStack limits"
+# Install cleanup first, so even a partially successful boot gets stopped.
+trap 'orb stop "$machine" >/dev/null 2>&1 || true; echo "Pilot guest stopped"' EXIT
 orb start "$machine"
 
 # OrbStack consumes the host's input stream by default. Explicitly detach stdin.
-trap 'orb stop "$machine" >/dev/null 2>&1 || true; echo "Pilot guest stopped"' EXIT
 echo "Guest kernel, cgroups and network:"
 orb run -m "$machine" bash -lc '
 set -eu
