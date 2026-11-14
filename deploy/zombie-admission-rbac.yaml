@@ -1,0 +1,40 @@
+# EXAMPLE ONLY. Not installed by the SpareCore CLI.
+# Apply through the owner's GitOps cluster repo after review, not on the Mac.
+# This account may ONLY get/patch the named zombie Node.
+# It cannot list Pods, evict Pods, read Secrets, or operate on other Nodes.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sparecore-system
+  labels:
+    app.kubernetes.io/part-of: sparecore
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: zombie-admission
+  namespace: sparecore-system
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sparecore-zombie-admission
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    resourceNames: ["zombie"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: sparecore-zombie-admission
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: sparecore-zombie-admission
+subjects:
+  - kind: ServiceAccount
+    name: zombie-admission
+    namespace: sparecore-system

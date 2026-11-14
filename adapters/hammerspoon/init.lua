@@ -11,6 +11,7 @@ local pending = nil
 local sampling = nil
 local previousVM = nil
 local boostEligibleAt = nil
+local lastUpdate = nil
 local menu = assert(hs.menubar.new())
 local icon = hs.image.imageFromPath(root .. "/assets/sparecore-menubar.png")
 assert(icon, "SpareCore menu icon missing")
@@ -67,6 +68,7 @@ local function applyResponse(code, output, err)
     if code ~= 0 then
         boostEligibleAt = nil
         state = {tier="off", reason="Policy CLI failed"}
+        lastUpdate = nil
         hs.printf("SpareCore: %s", tostring(err))
         return render()
     end
@@ -75,6 +77,7 @@ local function applyResponse(code, output, err)
         (parsed.tier ~= "off" and parsed.tier ~= "light" and parsed.tier ~= "boost") then
         boostEligibleAt = nil
         state = {tier="off", reason="Malformed policy output"}
+        lastUpdate = nil
         return render()
     end
     if parsed.tier == "boost" then
@@ -88,6 +91,7 @@ local function applyResponse(code, output, err)
         boostEligibleAt = nil
     end
     state = parsed
+    lastUpdate = monotonic()
     render()
 end
 
@@ -109,6 +113,7 @@ local function evaluate(cpu)
     if not newTask then
         boostEligibleAt = nil
         state = {tier="off",reason="Cannot launch policy"}
+        lastUpdate = nil
         return render()
     end
     newTask:setWorkingDirectory(root)
@@ -117,6 +122,7 @@ local function evaluate(cpu)
         pending = nil
         boostEligibleAt = nil
         state = {tier="off",reason="Policy launch failed"}
+        lastUpdate = nil
         render()
     end
 end
@@ -147,6 +153,10 @@ function controller.status()
 end
 function controller.iconLoaded()
     return menu:icon() ~= nil and menu:title() == ""
+end
+function controller.statusAge()
+    if not lastUpdate then return -1 end
+    return monotonic() - lastUpdate
 end
 function controller.stop()
     timer:stop(); battery:stop(); power:stop()

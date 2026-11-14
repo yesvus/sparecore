@@ -14,3 +14,7 @@ Read docs/INSTALLATION.md for help and docs/K3S_PILOT.md for a manual pilot.
 - No private addresses, credentials, authentication URLs or kubeconfigs in Git.
 - Tests: python3 -m unittest discover -s tests -v.
 - No untrusted CI on personal devices.
+
+- python3 -m sparecore worker and worker --input are READ-ONLY. They must not
+  start a VM, cordon/drain/uncordon a node or claim to have done so.
+- Never put a cluster-admin kubeconfig on the owner laptop.

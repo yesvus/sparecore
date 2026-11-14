@@ -7,7 +7,7 @@ from .policy import Signals, decide
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="SpareCore: observe-only")
-    parser.add_argument("command", choices=["decide", "doctor"])
+    parser.add_argument("command", choices=["decide", "doctor", "worker"])
     parser.add_argument("--input", help="JSON signals for decide")
     parser.add_argument("--macos-pressure", action="store_true",
                         help="Read macOS memory pressure when deciding")
@@ -28,6 +28,11 @@ def main(argv=None):
             print(details["warning"])
         return 0
 
+    if args.command == "worker" and not args.input:
+        from .worker_status import snapshot
+        details = snapshot()
+        print(json.dumps(details, indent=2))
+        return 0
     if not args.input:
         parser.error("--input is required for decide")
     try:
@@ -42,6 +47,12 @@ def main(argv=None):
             data["memory_safe"] = memory_safe(level, rate)
             extra = {"memory_pressure_level": level, "swap_io_mib_s": rate,
                      "memory_safe": data["memory_safe"]}
+        if args.command == "worker":
+            from .worker import WorkerState, plan
+            from dataclasses import asdict
+            result = plan(WorkerState(**data))
+            print(json.dumps(asdict(result)))
+            return 0
         signals = Signals(**data)
         result = decide(signals)
     except (ValueError, TypeError) as exc:
