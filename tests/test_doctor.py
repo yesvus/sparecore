@@ -17,6 +17,8 @@ class DoctorTests(TestCase):
             self.assertEqual(by_name["macOS"].status, "ok")
             self.assertEqual(by_name["Python"].status, "ok")
             self.assertEqual(by_name["Tailscale (optional)"].status, "optional")
+            self.assertEqual(by_name["Lima (optional worker)"].status, "optional")
+            self.assertEqual(by_name["OrbStack (optional)"].status, "optional")
             self.assertEqual(by_name["Menu configuration"].status, "missing")
             self.assertFalse((Path(tmp) / ".hammerspoon").exists())
 
@@ -39,7 +41,7 @@ class DoctorTests(TestCase):
         data = json.loads(result.stdout)
         self.assertEqual(data["mode"], "observe-only")
         self.assertIn("checks", data)
-        self.assertEqual(len(data["checks"]), 6)
+        self.assertEqual(len(data["checks"]), 7)
 
     def test_decide_needs_input(self):
         result = subprocess.run([sys.executable, "-m", "sparecore", "decide"],

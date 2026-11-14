@@ -1,3 +1,8 @@
+> Historical OrbStack experiment: NOT the recommended K3s runtime.
+> On 2026-11-14, the real kubelet startup failed because its kernel-log device
+> was unavailable. No Kubernetes node registered, temporary tokens were
+> revoked, and the guest was stopped. See LIMA_PILOT.md instead.
+
 # OrbStack -> k3s disposable worker pilot
 
 Status: isolated smoke VM was created and booted briefly; no k3s
