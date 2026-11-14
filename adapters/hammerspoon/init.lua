@@ -8,13 +8,16 @@ local displaysAsleep = false
 local state = {tier="off", reason="Waiting for host signals"}
 local pending = nil
 local menu = assert(hs.menubar.new())
+local icon = hs.image.imageFromPath(root .. "/assets/sparecore-menubar.png")
+assert(icon, "SpareCore menu icon missing")
+menu:setIcon(icon:setSize({w=17,h=17}), true)
+menu:setTitle("")
 local refresh
 
 local function render()
-    menu:setTitle("SC:" .. state.tier)
-    menu:setTooltip("SpareCore preview: no worker execution")
+    menu:setTooltip("SpareCore · " .. state.tier .. " · " .. state.reason)
     menu:setMenu({
-        {title="SpareCore: OBSERVE ONLY", disabled=true},
+        {title="SpareCore · " .. state.tier .. " (observe only)", disabled=true},
         {title=state.reason, disabled=true},
         {title="-"},
         {title="Auto", checked=mode=="auto", fn=function() mode="auto"; hs.settings.set("sparecore.mode",mode); refresh() end},
@@ -70,6 +73,9 @@ refresh()
 local controller = {}
 function controller.status()
     return state.tier, state.reason
+end
+function controller.iconLoaded()
+    return menu:icon() ~= nil and menu:title() == ""
 end
 function controller.stop()
     timer:stop(); battery:stop(); power:stop()
