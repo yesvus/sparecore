@@ -76,6 +76,7 @@ real-world latency tests are completed. Do not run untrusted CI on personal devi
 - [x] Resource-capped OrbStack guest tested manually, and then stopped
 - [ ] Guided installer/wizard with explicit confirmation before mutations
 - [ ] Separate Tailscale guest identity, bidirectional Pod network tests
+      (manual opt-in command: bash scripts/enroll-guest-tailscale.sh)
 - [ ] Safe worker actuator and official ARC integration
 - [ ] Linux and rootless Termux adapters
 

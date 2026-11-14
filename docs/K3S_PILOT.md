@@ -105,3 +105,22 @@ outbound NAT alone is insufficient.
 
 VM is stopped between tests. No node secrets, tailnet auth links or
 host-private addressing are committed to this project.
+
+## One-time user-approved Tailscale enrollment
+
+After confirming the Mac is plugged in and the existing guest has been
+provisioned using this runbook, run the following **in an interactive Terminal
+on the Mac** from the SpareCore checkout:
+
+    bash scripts/enroll-guest-tailscale.sh
+
+This refuses battery power, unsafe memory state, absent Hammerspoon status,
+a busy/unknown safety tier, an already-running VM, and a guest exceeding the
+documented resource limits. It requires typing ENROLL; the installed official
+Tailscale client then prints a private login URL to approve. Do not post this
+URL into a GitHub issue or paste it into public logs. The script stops the
+guest after success, failure, or interruption.
+
+Enrollment provides a distinct guest tailnet identity but does **not** join
+k3s or prove Flannel networking. Continue the separate bidirectional network
+and resource-isolated k3s acceptance checks afterward.
