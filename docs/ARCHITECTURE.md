@@ -42,3 +42,17 @@ state downgrades are not delayed.
 Validate policy decisions against real interactive latency before worker
 actuation; pressure signals alone do not guarantee that a Mac will stay
 responsive. Never expose personal device paths in shared repo state.
+
+## macOS K3s backend decision (2026-11-14)
+
+OrbStack's shared-kernel machine could not launch kubelet because the
+kernel message device was absent. We will not depend on synthetic kernel
+devices or experimental kubelet feature flags for the default runtime.
+
+Use a full ARM64 Linux guest via Lima and the native macOS VZ backend.
+A Lima 2.3.0 Ubuntu 24.04.5 LTS guest passed preflight with a real kernel
+message device, cgroup v2, two guest CPUs and about 2 GiB guest RAM.
+Use plain mode without macOS shared mounts or bundled containerd,
+with host-loopback access disabled.
+The macOS owner-first Hammerspoon policy is unchanged.
+OrbStack remains an optional developer tool, not an approved K3s backend.

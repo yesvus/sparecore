@@ -7,7 +7,9 @@ Read docs/INSTALLATION.md for help and docs/K3S_PILOT.md for a manual pilot.
 - Preserve existing user configuration. Do not overwrite Hammerspoon init.lua.
 - Ask before installing packages, granting permissions, connecting a tailnet,
   creating VMs, joining Kubernetes, or changing secrets/production systems.
-- Use proven Hammerspoon, OrbStack, Tailscale, k3s and official ARC primitives.
+- Use proven Hammerspoon, Lima VZ, Tailscale, k3s and official ARC primitives.
+- OrbStack Linux machines failed real k3s kubelet preflight (missing /dev/kmsg);
+  do not recommend them as full-kernel workers by default.
 - Never write custom lease management, queue, CI broker or schedulers.
 - No private addresses, credentials, authentication URLs or kubeconfigs in Git.
 - Tests: python3 -m unittest discover -s tests -v.

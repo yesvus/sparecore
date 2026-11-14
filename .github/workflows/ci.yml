@@ -14,3 +14,4 @@ jobs:
       - run: python -m compileall -q sparecore
       - run: bash -n scripts/smoke-orbstack.sh
       - run: bash -n scripts/enroll-guest-tailscale.sh
+      - run: bash -n scripts/enroll-lima-tailscale.sh

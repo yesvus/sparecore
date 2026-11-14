@@ -22,8 +22,10 @@ VMs or changing network/cluster settings. Never request secret keys.
 
 [Complete install prompt](INSTALL_PROMPT.md)
 
-Requirements: Python 3.9+, macOS and Hammerspoon. OrbStack is needed only
-for the later isolated Linux worker; Tailscale only for future private networking.
+Requirements: Python 3.9+, macOS and Hammerspoon. For the experimental
+external k3s worker, prefer Lima with native macOS Virtualization.framework.
+OrbStack is optional for general Linux development; its shared-kernel machines
+did not pass our kubelet preflight. Tailscale is optional until cluster join.
 
 Clone and verify:
 
@@ -61,7 +63,8 @@ See [installation and troubleshooting](docs/INSTALLATION.md).
 | --- | --- |
 | macOS sensing / menu | Hammerspoon |
 | Pure capacity policy and read-only doctor | Python 3.9+ standard library |
-| Optional Linux VM (manual pilot) | OrbStack |
+| Full Linux VM for k3s (manual pilot) | Lima native VZ driver |
+| Optional shared-kernel dev Linux | OrbStack (not a verified k3s backend) |
 | Optional private networking | Tailscale |
 | Future trusted CI worker | k3s + official ARC |
 
@@ -73,15 +76,17 @@ real-world latency tests are completed. Do not run untrusted CI on personal devi
 
 - [x] Pure safety policy, CPU/memory/swap/thermal sensing, one menu icon
 - [x] AC-only safety and read-only system doctor
-- [x] Resource-capped OrbStack guest tested manually, and then stopped
+- [x] OrbStack k3s limitation identified (missing kernel log device)
+- [x] Full Lima Ubuntu 24.04 LTS VM with kernel device and cgroups verified
 - [ ] Guided installer/wizard with explicit confirmation before mutations
-- [ ] Separate Tailscale guest identity, bidirectional Pod network tests
-      (manual opt-in command: bash scripts/enroll-guest-tailscale.sh)
+- [ ] Dedicated Lima guest Tailscale identity and Pod network tests
+      (manual opt-in command: bash scripts/enroll-lima-tailscale.sh)
 - [ ] Safe worker actuator and official ARC integration
 - [ ] Linux and rootless Termux adapters
 
 [Architecture](docs/ARCHITECTURE.md) ·
-[Experimental k3s pilot](docs/K3S_PILOT.md) ·
+[Current Lima k3s pilot](docs/LIMA_PILOT.md) ·
+[Historical OrbStack pilot](docs/K3S_PILOT.md) ·
 [Contributing](CONTRIBUTING.md)
 
 MIT licensed. SpareCore is experimental software.

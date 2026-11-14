@@ -28,10 +28,14 @@ def inspect_environment(system=None, home=None, find_executable=None):
     checks.append(Check("Python", "ok" if py_exe else "missing",
                         py_exe or "Python 3 not on PATH",
                         "" if py_exe else "Install a supported Python 3 runtime"))
+    lima = find_executable("limactl")
+    checks.append(Check("Lima (optional worker)", "ok" if lima else "optional",
+                        lima or "Lima CLI not found",
+                        "" if lima else "Install Lima for a full Linux VM k3s worker later"))
     orb = find_executable("orb")
-    checks.append(Check("OrbStack", "ok" if orb else "missing",
+    checks.append(Check("OrbStack (optional)", "ok" if orb else "optional",
                         orb or "OrbStack CLI not found",
-                        "" if orb else "Install OrbStack to use an isolated Linux worker later"))
+                        "" if orb else "OrbStack is not required for the full-VM k3s backend"))
     hs = find_executable("hs")
     checks.append(Check("Hammerspoon", "ok" if hs else "missing",
                         hs or "Hammerspoon CLI not found",

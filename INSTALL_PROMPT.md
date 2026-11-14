@@ -13,7 +13,7 @@ Preserve my Mac's interactivity, battery life and existing configuration.
 1. Read the current README.md, INSTALL_PROMPT.md, AGENTS.md and
    docs/INSTALLATION.md from the repository before choosing commands.
 2. Inspect my macOS version, architecture, Python, Homebrew,
-   Hammerspoon configuration and existing OrbStack installation.
+   Hammerspoon configuration and existing Lima/OrbStack installations.
 3. Explain missing prerequisites and get permission before installing
    packages, granting permissions or changing persistent files.
 4. Clone into my preferred location; do not overwrite existing files.
