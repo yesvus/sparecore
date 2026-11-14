@@ -44,7 +44,7 @@ refresh = function()
             hs.printf("SpareCore: %s",tostring(err))
         end
         render()
-    end,{"-m","sparecore","decide","--input",args})
+    end,nil,{"-m","sparecore","decide","--input",args})
     if not nextTask then
         state = {tier="off",reason="Cannot launch Python"}
         render()
