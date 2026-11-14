@@ -18,3 +18,7 @@ Read docs/INSTALLATION.md for help and docs/K3S_PILOT.md for a manual pilot.
 - python3 -m sparecore worker and worker --input are READ-ONLY. They must not
   start a VM, cordon/drain/uncordon a node or claim to have done so.
 - Never put a cluster-admin kubeconfig on the owner laptop.
+
+- The optional scripts/check-zombie-drain.py is a READ-ONLY snapshot for
+  a trusted cluster administration host, not the Mac, and never authorizes
+  an unattended VM shutdown by itself.

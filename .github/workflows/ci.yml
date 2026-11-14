@@ -12,6 +12,7 @@ jobs:
           python-version: "3.12"
       - run: python -m unittest discover -s tests -v
       - run: python -m compileall -q sparecore
+      - run: python -m py_compile scripts/check-zombie-drain.py
       - run: bash -n scripts/smoke-orbstack.sh
       - run: bash -n scripts/enroll-guest-tailscale.sh
       - run: bash -n scripts/enroll-lima-tailscale.sh
