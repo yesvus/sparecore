@@ -79,9 +79,10 @@ real-world latency tests are completed. Do not run untrusted CI on personal devi
 - [x] OrbStack k3s limitation identified (missing kernel log device)
 - [x] Full Lima Ubuntu 24.04 LTS VM with kernel device and cgroups verified
 - [ ] Guided installer/wizard with explicit confirmation before mutations
-- [ ] Dedicated Lima guest Tailscale identity and Pod network tests
-      (manual opt-in command: bash scripts/enroll-lima-tailscale.sh)
-- [ ] Safe worker actuator and official ARC integration
+- [x] Dedicated Lima guest Tailscale identity and bidirectional Pod network smoke
+- [x] K3s ARM64 node named zombie joined, with NoSchedule taint and strict
+      resource reservations; restart/rejoin verified using existing certificates
+- [ ] Safe owner-priority VM/Node actuator and official ARC integration
 - [ ] Linux and rootless Termux adapters
 
 [Architecture](docs/ARCHITECTURE.md) ·
