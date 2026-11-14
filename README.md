@@ -46,3 +46,22 @@ sensors; hysteresis; sandboxed ARM64 OrbStack VM and manual networking checks;
 safe actuator pilot, ARC integration.
 
 MIT licensed.
+
+## macOS guardrails (observe-only)
+
+The macOS adapter now measures:
+
+- Charging state, user idle time, screen sleep and CPU utilization (asynchronously)
+- ProcessInfo thermal state via Hammerspoon
+- VM swap I/O rate across 30-second samples
+- macOS memory-pressure level via a bounded sysctl subprocess
+
+Swap allocated historically is not treated as current swapping; only new swap
+traffic is used for the high-capacity guard. The macOS memory-pressure sysctl
+is not a public Apple API: if unavailable or unrecognized, high-capacity mode
+fails closed. Serious/critical heat or memory warning stops eligibility.
+Entering boost requires 2 minutes of stable qualified samples after the
+host is already idle. A deterioration reduces the observed tier immediately.
+
+This is not a performance guarantee. VM limits and workload admission are not
+implemented; the UI reports *hypothetical* tiers only.
