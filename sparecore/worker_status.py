@@ -10,7 +10,7 @@ from .worker import WorkerState, plan
 def _run(args, timeout=5):
     try:
         return subprocess.run(args, check=True, capture_output=True, text=True,
-                              timeout=timeout).stdout.strip()
+                              timeout=timeout, stdin=subprocess.DEVNULL).stdout.strip()
     except (OSError, subprocess.SubprocessError):
         return None
 
@@ -55,7 +55,7 @@ def _host_summary():
     pressure = _run(["/usr/sbin/sysctl", "-n", "kern.memorystatus_vm_pressure_level"],
                     timeout=2)
     result = _run(["/opt/homebrew/bin/hs", "-c",
-                   "return sparecore.status(),sparecore.statusAge()"], timeout=4)
+                   "local tier, reason = sparecore.status(); return tier, reason, sparecore.statusAge()"], timeout=4)
     tier = "off"
     reason = "Hammerspoon state unavailable or stale"
     age = None

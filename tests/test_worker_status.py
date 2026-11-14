@@ -4,7 +4,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
-from sparecore.worker_status import _guest_summary, _host_summary, snapshot
+from sparecore.worker_status import _guest_summary, _host_summary, _run, snapshot
 
 
 def machine(status="Stopped", cpu=2, mem=2147483648, host_loopback=False):
@@ -18,6 +18,12 @@ def machine(status="Stopped", cpu=2, mem=2147483648, host_loopback=False):
 
 
 class WorkerReadOnlyTests(unittest.TestCase):
+    @patch("sparecore.worker_status.subprocess.run")
+    def test_subprocess_consumes_no_caller_stdin(self, run):
+        run.return_value.stdout = "ok"
+        self.assertEqual(_run(["/bin/echo", "ok"]), "ok")
+        self.assertEqual(run.call_args.kwargs["stdin"], subprocess.DEVNULL)
+
     @patch("sparecore.worker_status._run")
     def test_vm_parses_exact_machine(self, run):
         run.return_value = json.dumps(machine())
