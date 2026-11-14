@@ -68,6 +68,9 @@ local timer = hs.timer.doEvery(30,refresh)
 render()
 refresh()
 local controller = {}
+function controller.status()
+    return state.tier, state.reason
+end
 function controller.stop()
     timer:stop(); battery:stop(); power:stop()
     if pending then pending:terminate() end
