@@ -74,3 +74,34 @@ Run scripts/smoke-orbstack.sh on Zombie for a gated, read-only retest.
 The next major unverified item is inbound network reachability and Flannel
 Pod routing. This requires an explicit Tailscale guest-network design,
 not just a reachable control-plane port.
+
+## Additional guest networking checks (2026-11-14)
+
+- A temporary Linux VXLAN interface using UDP 8472 was created successfully
+  and removed immediately. This verifies kernel/netlink support, **not**
+  working cross-node Flannel traffic.
+- Official Tailscale 1.104.7 was installed inside the isolated guest from
+  Tailscale's signed Ubuntu Noble apt repository. The systemd daemon was active
+  during testing, but the guest has **not enrolled in the tailnet**.
+- VM was stopped after the tests. Mac remained on AC and used swap was 0 MB.
+
+### Remaining network admission gate
+
+Existing k3s nodes use Flannel VXLAN with Tailscale peer addresses. The
+new guest requires its own tailnet identity and inbound reachability; OrbStack
+outbound NAT alone is insufficient.
+
+1. Register the guest as a distinct tailnet device via official Tailscale
+   interactive authentication or a narrowly scoped expiring auth key.
+   Do not copy the Mac host identity or commit credentials.
+2. Review tailnet grants/ACLs for at least Kubernetes API TCP 6443, the
+   necessary kubelet TCP 10250, and Flannel VXLAN UDP 8472 between nodes.
+   Never publish these ports on the open Internet.
+3. Verify a real tailscale0 guest interface, bidirectional node access and
+   kernel overlay routing. Confirm Pod-to-Pod and Pod-to-Service networks,
+   rather than treating Node Ready as sufficient.
+4. Only then test joining a tainted, dedicated ARM64 k3s agent and running
+   an explicitly selected, resource-limited smoke Pod.
+
+VM is stopped between tests. No node secrets, tailnet auth links or
+host-private addressing are committed to this project.
