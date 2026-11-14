@@ -1,67 +1,86 @@
 # SpareCore
 
-Turn **spare capacity on personal devices** into opt-in, low-impact compute.
-The device owner's responsiveness and battery come first.
+**Borrow spare compute from your personal device without sacrificing responsiveness.**
 
-**Status: pre-alpha / observe-only.** This version never starts OrbStack,
-joins Kubernetes, schedules jobs or modifies any cluster.
+SpareCore is open-source, opt-in compute capacity management. The first platform is
+macOS: it observes power, CPU, memory pressure, swap traffic, thermals and idle time.
 
-## MVP
+> **Pre-alpha / observe only.** The current menu displays hypothetical Off,
+> Light, and Boost eligibility. It does not start a VM, join Kubernetes, or run CI.
 
-- Pure, deterministic safety policy: off / light / boost.
-- On battery: off, even with manual On selected.
-- Interactive AC: light only; idle AC can boost after memory-pressure checks.
-- Missing CPU info fails closed. Unknown memory safety forbids boost.
-- Portable Python 3.9+ CLI and Hammerspoon macOS status menu prototype.
+## Quick start (macOS)
 
-To test: python3 -m unittest discover -s tests -v
+Want an AI coding agent to install it? Copy this prompt:
 
-To try the policy:
+~~~text
+Help me set up SpareCore on my Mac: https://github.com/yesvus/sparecore
+Read INSTALL_PROMPT.md and README.md before making changes.
+Start with observe-only mode, run doctor and tests, and preserve my
+existing Hammerspoon config. Ask before installing software, creating
+VMs or changing network/cluster settings. Never request secret keys.
+~~~
 
-    python3 -m sparecore decide --input '{"on_ac":true,"idle_seconds":400,"displays_asleep":false,"cpu_busy_percent":20,"memory_safe":true,"mode":"auto"}'
+[Complete install prompt](INSTALL_PROMPT.md)
 
-The Hammerspoon demo can be loaded with an absolute-path dofile call from
-~/.hammerspoon/init.lua. It currently does not collect a validated
-memory-pressure signal and cannot boost.
+Requirements: Python 3.9+, macOS and Hammerspoon. OrbStack is needed only
+for the later isolated Linux worker; Tailscale only for future private networking.
 
-## Architecture
+Clone and verify:
 
-- Host sensor adapters: macOS Hammerspoon, future Linux and Android/Termux.
-- Portable policy core: decides whether capacity may be offered.
-- Actuator (future): OrbStack VM; Kubernetes cordon, drain and uncordon.
-- Kubernetes scheduler and **official ARC** manage jobs and ephemeral runners.
-- Built-in Kubernetes node lifecycle and ARC manage readiness, retry,
-  lifecycle and leases: **SpareCore does not implement any of these.**
-- No new broker, controller, job queue, custom retry or lease implementation.
-- Android without root should use an established rootless task executor,
-  rather than pretending to be a native Kubernetes worker.
-- Never run untrusted fork PR code on a personal device by default.
-- Hard CPU/RAM/disk limits and safe shutdown are prerequisites to actuation.
+~~~sh
+git clone https://github.com/yesvus/sparecore.git
+cd sparecore
+python3 -m unittest discover -s tests -v
+python3 -m sparecore doctor
+~~~
 
-Prior art: archived Cindral is only a reference for deterministic policy and
-failure boundaries, not code to port.
+If necessary, install Hammerspoon via Homebrew (with your approval):
 
-Next steps: 48-72 hours of Prometheus measurements; memory/swap/thermal
-sensors; hysteresis; sandboxed ARM64 OrbStack VM and manual networking checks;
-safe actuator pilot, ARC integration.
+~~~sh
+brew install --cask hammerspoon
+~~~
 
-MIT licensed.
+Open Hammerspoon once. Add **one** line to your existing
+~/.hammerspoon/init.lua, replacing the path with your absolute clone path:
 
-## macOS guardrails (observe-only)
+~~~lua
+sparecore = dofile("/absolute/path/to/sparecore/adapters/hammerspoon/init.lua")
+~~~
 
-The macOS adapter now measures:
+Do not overwrite an existing Hammerspoon configuration. Choose Reload Config.
+A single CPU-shaped icon should appear in the menu bar.
 
-- Charging state, user idle time, screen sleep and CPU utilization (asynchronously)
-- ProcessInfo thermal state via Hammerspoon
-- VM swap I/O rate across 30-second samples
-- macOS memory-pressure level via a bounded sysctl subprocess
+The menu has Auto, On, Off modes. These are **safety decisions only** until
+the guarded worker actuator is implemented. Battery power always blocks compute.
 
-Swap allocated historically is not treated as current swapping; only new swap
-traffic is used for the high-capacity guard. The macOS memory-pressure sysctl
-is not a public Apple API: if unavailable or unrecognized, high-capacity mode
-fails closed. Serious/critical heat or memory warning stops eligibility.
-Entering boost requires 2 minutes of stable qualified samples after the
-host is already idle. A deterioration reduces the observed tier immediately.
+See [installation and troubleshooting](docs/INSTALLATION.md).
 
-This is not a performance guarantee. VM limits and workload admission are not
-implemented; the UI reports *hypothetical* tiers only.
+## Components
+
+| Layer | Implementation |
+| --- | --- |
+| macOS sensing / menu | Hammerspoon |
+| Pure capacity policy and read-only doctor | Python 3.9+ standard library |
+| Optional Linux VM (manual pilot) | OrbStack |
+| Optional private networking | Tailscale |
+| Future trusted CI worker | k3s + official ARC |
+
+SpareCore does not implement custom queues, schedulers, heartbeats or leases.
+It does not promise interaction is unaffected until resource limits and
+real-world latency tests are completed. Do not run untrusted CI on personal devices.
+
+## Current status and roadmap
+
+- [x] Pure safety policy, CPU/memory/swap/thermal sensing, one menu icon
+- [x] AC-only safety and read-only system doctor
+- [x] Resource-capped OrbStack guest tested manually, and then stopped
+- [ ] Guided installer/wizard with explicit confirmation before mutations
+- [ ] Separate Tailscale guest identity, bidirectional Pod network tests
+- [ ] Safe worker actuator and official ARC integration
+- [ ] Linux and rootless Termux adapters
+
+[Architecture](docs/ARCHITECTURE.md) ·
+[Experimental k3s pilot](docs/K3S_PILOT.md) ·
+[Contributing](CONTRIBUTING.md)
+
+MIT licensed. SpareCore is experimental software.
