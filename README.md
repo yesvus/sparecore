@@ -82,9 +82,11 @@ real-world latency tests are completed. Do not run untrusted CI on personal devi
 - [x] Dedicated Lima guest Tailscale identity and bidirectional Pod network smoke
 - [x] K3s ARM64 node named zombie joined, with NoSchedule taint and strict
       resource reservations; restart/rejoin verified using existing certificates
-- [ ] Safe owner-priority VM/Node actuator and official ARC integration
+- [x] Read-only worker state/transition planner with stale-status guard
+- [ ] Safe owner-priority VM/Node actuator, scoped GitOps RBAC and official ARC
 - [ ] Linux and rootless Termux adapters
 
+[Worker lifecycle (read-only)](docs/WORKER_LIFECYCLE.md) ·
 [Architecture](docs/ARCHITECTURE.md) ·
 [Current Lima k3s pilot](docs/LIMA_PILOT.md) ·
 [Historical OrbStack pilot](docs/K3S_PILOT.md) ·
