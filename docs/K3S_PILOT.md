@@ -1,11 +1,12 @@
 # OrbStack -> k3s disposable worker pilot
 
-Status: preflight only. No dedicated OrbStack VM has been created, no k3s
-agent was joined, and no CI was routed to the laptop.
+Status: isolated smoke VM was created and booted briefly; no k3s
+agent was joined, and no CI was routed to the laptop. It is stopped by
+default.
 
 ## Gates
 
-Before the first VM boot:
+Before the next VM start:
 
 - Confirm AC power, normal thermals, a stable SpareCore-eligible state, and
   >=48-72h of CPU, RAM, compression and swap history during normal Mac use.
@@ -55,3 +56,21 @@ Zombie (Apple M2, 16 GiB) was on AC power but did not pass the policy
 preflight. Recent 30-minute Prometheus peaks: CPU busy ~63.5% and
 swap-out throughput ~5.1 MiB/s. Peaks are not sustained load or validated
 headroom. The first OrbStack VM boot is deferred pending safer measurements.
+
+## Verified experimental guest (2026-11-14)
+
+An isolated Ubuntu 24.04 ARM64 guest named sparecore-pilot was created with
+2 CPU, 2 GiB memory and 20 GiB maximum disk. Inspection using OrbStack
+reported the caps, isolated mode and SSH agent forwarding disabled.
+Inside the guest, cgroup v2 reported cpu.max 200000 100000 and
+memory.max 2147483648; systemd, overlay filesystem and /dev/net/tun are
+present. The guest reached the Gurbet API TCP port through OrbStack NAT.
+
+The Linux /proc/meminfo and nproc views show host kernel capacity, not the
+effective cgroup limits; check cgroup quota files for actual enforcement.
+The smoke guest was stopped after testing, with no kubelet installation.
+
+Run scripts/smoke-orbstack.sh on Zombie for a gated, read-only retest.
+The next major unverified item is inbound network reachability and Flannel
+Pod routing. This requires an explicit Tailscale guest-network design,
+not just a reachable control-plane port.
