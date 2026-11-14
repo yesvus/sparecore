@@ -146,3 +146,29 @@ tested independently.
 
 References: https://kubernetes.io/docs/concepts/scheduling-eviction/api-eviction/
 and https://kubernetes.io/docs/reference/access-authn-authz/rbac/ .
+
+
+## Read-only cluster drain preflight (Gurbet only)
+
+From a trusted admin host with an existing kubeconfig, run:
+
+~~~sh
+python3 scripts/check-zombie-drain.py
+~~~
+
+The script calls ONLY kubectl get for Node zombie and a Pod inventory
+filtered by spec.nodeName=zombie. It never creates credentials or
+changes Node/Pod/VM state. Exit status 0 indicates no_pods_observed and
+the node is cordoned with its SpareCore NoSchedule taint; exit status 3
+indicates admission is open, a foreign workload exists, or a trusted ARC
+Pod still needs explicit eviction review. Failure to query the API or parse
+the response returns exit status 2 (unknown_fail_closed).
+
+No Pods observed is NOT permission to stop a VM. This is one snapshot,
+not a race-free lease or proof that every in-flight job finished. The
+eventual controller must re-check shortly before shutdown and enforce
+a separate bounded drain/PDB policy.
+
+Never run this tool on macOS by copying a cluster-admin kubeconfig. The
+fenced admission authority remains distinct from the future namespaced
+Eviction API authority.
