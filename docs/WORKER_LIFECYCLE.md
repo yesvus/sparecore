@@ -84,3 +84,22 @@ a safe stop. Critical uninterruptible work must not run on this node.
 Sources:
 https://kubernetes.io/docs/reference/kubectl/generated/kubectl_drain/
 https://kubernetes.io/docs/reference/access-authn-authz/rbac/
+
+## Verified read-only pilot (2026-11-14)
+
+- macOS Python 3.9 and Github CI both ran the planner and its tests.
+- Zombie's real Hammerspoon report was Light and under the freshness limit;
+  Lima VM showed Stopped with 2 vCPU, 2 GiB RAM, VZ, plain mode,
+  no host mounts or host-loopback access.
+- Using a temporary ServiceAccount/ClusterRole/Binding on Gurbet,
+  actual authorization checks returned YES for get/patch nodes/zombie,
+  and NO for patch nodes/gurbet, patch nodes/jelly, list nodes, list
+  Pods, create pods/eviction, and get Secrets.
+- All temporary RBAC objects were deleted after the permission test.
+  No credentials were minted or installed on Zombie.
+- The only persistent changes are application code/docs. VM and Node
+  admission remain disabled; the Node stays cordoned and tainted.
+
+Note that a future controller must independently confirm fresh Kubernetes
+Pod/node state. A local read-only snapshot has no cluster authorization
+and cannot certify that an offline Node is already safely cordoned.
