@@ -2,7 +2,7 @@ import unittest
 from sparecore import Signals, decide
 
 def sample(**kw):
-    d = dict(on_ac=True,idle_seconds=0,displays_asleep=False,cpu_busy_percent=10,memory_safe=True,mode="auto")
+    d = dict(on_ac=True,idle_seconds=0,displays_asleep=False,cpu_busy_percent=10,memory_safe=True,mode="auto",thermal_state="nominal")
     d.update(kw)
     return Signals(**d)
 
@@ -32,3 +32,21 @@ class PolicyTest(unittest.TestCase):
             sample(on_ac="yes")
         with self.assertRaises(ValueError):
             sample(mode="force")
+
+class ThermalTests(unittest.TestCase):
+    def test_nominal_with_safe_idle_boost(self):
+        self.assertEqual(decide(sample(thermal_state="nominal",idle_seconds=360)).tier, "boost")
+
+    def test_fair_cannot_boost(self):
+        self.assertEqual(decide(sample(thermal_state="fair",idle_seconds=360)).tier, "light")
+
+    def test_critical_and_serious_stop(self):
+        for value in ("critical", "serious"):
+            self.assertEqual(decide(sample(thermal_state=value)).tier, "off")
+
+    def test_unknown_thermal_cannot_boost(self):
+        self.assertEqual(decide(sample(thermal_state="unknown",idle_seconds=360)).tier, "light")
+
+    def test_unknown_thermal_is_invalid_input(self):
+        with self.assertRaises(ValueError):
+            sample(thermal_state="boiling")
