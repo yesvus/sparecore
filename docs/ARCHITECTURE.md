@@ -56,3 +56,16 @@ Use plain mode without macOS shared mounts or bundled containerd,
 with host-loopback access disabled.
 The macOS owner-first Hammerspoon policy is unchanged.
 OrbStack remains an optional developer tool, not an approved K3s backend.
+
+
+## Verified network and scheduler pilot
+
+On 2026-11-14, an ARM64 Ubuntu 24.04 LTS Lima VM successfully joined
+K3s as zombie with an initial NoSchedule taint. Actual DNS, cross-node
+Pod-to-Pod connectivity and Kubernetes Service traffic passed. Kubelet
+capacity/allocatable agrees with the VM size and configured reservations.
+The node remains cordoned with the agent disabled between manual runs.
+
+This is a one-time functional pilot, not an unattended resource-sharing
+controller. The owner-priority host actuator, scoped RBAC credentials,
+admission/drain lifecycle, and ARC workloads are still unimplemented.

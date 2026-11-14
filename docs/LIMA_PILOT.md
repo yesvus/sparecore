@@ -26,8 +26,10 @@ Documentation: https://lima-vm.io/docs/config/vmtype/vz/
 
 The VM is called sparecore-zombie, but the future Kubernetes node will be
 called zombie. The Ubuntu guest is configured and stopped. Official Tailscale
-was installed from its signed Ubuntu repository, but the guest is NOT yet
-enrolled in the tailnet. No k3s agent is installed in this new guest.
+was installed from its signed Ubuntu repository and the user enrolled
+the guest as a distinct tailnet device. The tested K3s agent is installed,
+but is DISABLED at boot and STOPPED when the VM is off. The Kubernetes
+Node object named zombie remains cordoned and tainted.
 
 For other Macs, use these commands only after reviewing resource headroom:
 
@@ -52,24 +54,62 @@ The script verifies AC power, memory safety, user-priority mode and VM limits.
 After typed consent, the official Tailscale CLI prints a private browser login
 URL for this *new* Linux guest. Do not paste that URL into public repos or logs.
 The script verifies registration and stops the VM on completion or failure.
+This step has already been performed on Zombie and should not be repeated
+unless repairing or re-enrolling the VM.
 
 Do NOT copy the Mac's Tailscale identity or reuse the still-stopped OrbStack
 guest's credentials. After the Lima replacement works, review retirement of
 the old pilot and its stale tailnet device.
 
-## Next acceptance gates
+## Live pilot acceptance evidence (2026-11-14)
 
-1. Bidirectional Tailscale TCP, UDP 8472 and Kubernetes API TCP 6443.
-2. Pin compatible ARM64 k3s; create a **short-lived bootstrap token** for join,
-   not a long-lived control-plane/server token. Never expose it in logs.
-3. Configure node-name zombie, explicit guest tailnet node IP, flannel-iface
-   tailscale0, and sparecore=true:NoSchedule initial taint.
-4. Verify Ready, accurate Allocatable memory and CPU, cgroup isolation,
-   Flannel Pod-to-Pod/Service traffic and a single tiny trusted smoke Pod.
-5. Stop and disable agent after pilot, stop VM and check other nodes remain
-   Ready. Never schedule databases, long-running stateful work or untrusted CI.
-6. Build a guarded local actuator only after host latency and 48-72h
-   baseline comparisons. Kubernetes/ARC own lifecycle and runner leases.
+The full Linux VM has passed **actual** Kubernetes registration and network
+testing. The real cluster is K3s v1.36.4+k3s1. Results:
 
-This pilot is not a production installation or evidence of safe unattended
-operation on a laptop.
+| Check | Observed |
+| --- | --- |
+| macOS eligibility | AC, nominal thermals, normal memory pressure |
+| Lima guest | Ubuntu 24.04.5 LTS ARM64, full native VZ Linux kernel |
+| Network | Tailnet peer and API reachable in both directions |
+| Flannel ingress | UDP 8472 request/response succeeds |
+| Node identity | zombie, flannel-iface tailscale0 |
+| Node isolation | sparecore=true:NoSchedule, additionally cordoned |
+| Kubelet status on startup | Ready |
+| CPU | 2 core capacity, 1700m allocatable |
+| RAM | about 1.91 GiB capacity, about 1.28 GiB allocatable |
+| Pod count | max-pods=4 |
+| Rejoin after stopping | Ready again with existing kubelet certificates |
+| DNS | kubernetes.default.svc.cluster.local resolves in a Pod |
+| Pod-to-Pod | busybox client on zombie can reach a server Pod on gurbet |
+| Pod-to-Service | client reaches server via Kubernetes Service DNS |
+| End of test | client Succeeded, server/test namespace deleted |
+| Credentials | temporary K3s bootstrap token revoked, zero active tokens |
+| Current condition | guest stopped; agent disabled; zombie cordoned |
+
+A resource-limited BusyBox client Pod ran on Zombie and reached a
+resource-limited server Pod on Gurbet via both direct Pod IP and Kubernetes
+Service DNS. Both tests returned the expected fixed string. This is a
+**functional smoke test**, not a sustained-load, latency, thermal, or
+untrusted-code safety certification.
+
+### Next engineering gate
+
+1. Implement the smallest owner-priority host actuator: fail-closed admission
+   control (cordon), bounded drain that respects jobs and PDBs, then guest
+   stop. An AC-loss event must never silently continue scheduling jobs.
+2. Use strict, node-scoped RBAC: no full cluster-admin kubeconfig on the
+   personal Mac. Use native Kubernetes node conditions/leases, not custom
+   heartbeat/lease infrastructure.
+3. Validate 48-72h normal-use interactive latency, power and memory pressure
+   before assigning jobs. The current Hammerspoon menu still **only
+   observes**, so it does NOT shut down a VM automatically on battery yet.
+4. Pilot a single **trusted** ARC ephemeral runner via existing cluster ARC,
+   with minRunners=0, explicit node selector and taint tolerations.
+5. Review and retire the old stopped OrbStack pilot and its stale tailnet
+   device after verifying there are no user-owned assets inside.
+6. Keep untrusted fork workflows, databases and irreplaceable state off this
+   opportunistic laptop.
+
+Do not confuse a K3s Node showing Ready with permission to schedule work.
+The node is intentionally cordoned even when it temporarily transitions
+through Ready while the VM shuts down.
