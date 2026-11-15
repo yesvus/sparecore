@@ -175,15 +175,15 @@ Eviction API authority.
 
 ## Manually gated admission fence (not deployed)
 
-The optional \`scripts/fence-zombie.py\` is the first narrowly scoped
+The optional `scripts/fence-zombie.py` is the first narrowly scoped
 **write-capable** primitive; it does *not* run on the Mac and is never invoked
 by the Hammerspoon menu or read-only planner. It can only set
-\`spec.unschedulable=true\` for the named \`zombie\` Node. It cannot uncordon,
+`spec.unschedulable=true` for the named `zombie` Node. It cannot uncordon,
 drain, evict, start or stop VMs, or schedule ARC.
 
 On a trusted cluster-side host, use an **explicit, narrowly scoped Kubernetes
-identity** whose effective rights allow \`get/patch nodes/zombie\` and deny
-unscoped node patch and \`patch nodes/gurbet\`. The planned GitOps registration
+identity** whose effective rights allow `get/patch nodes/zombie` and deny
+unscoped node patch and `patch nodes/gurbet`. The planned GitOps registration
 and manual sync must be reviewed separately before use. Do **not** use a
 cluster-admin kubeconfig for this command or copy one to the Mac.
 
@@ -193,14 +193,14 @@ python3 scripts/fence-zombie.py --context YOUR_SCOPED_CONTEXT
 python3 scripts/fence-zombie.py --context YOUR_SCOPED_CONTEXT --apply --confirm-node zombie
 ~~~
 
-Default output is JSON \`would_cordon\` or \`already_cordoned\`, with
-\`applied=false\`. Applying is refused without both \`--context\` and the
+Default output is JSON `would_cordon` or `already_cordoned`, with
+`applied=false`. Applying is refused without both `--context` and the
 exact confirmation, or when RBAC is broad/missing. It first validates the
-Node UID, resourceVersion and original \`sparecore=true:NoSchedule\` taint,
+Node UID, resourceVersion and original `sparecore=true:NoSchedule` taint,
 then makes a single JSON Patch that tests the UID/resourceVersion before
 setting only the scheduling flag, and reads the Node again to verify it.
 A race, unavailable API or malformed state fails closed; if the patch might
-have succeeded but final verification fails, \`applied="unknown"\` is reported
+have succeeded but final verification fails, `applied="unknown"` is reported
 rather than false success. Exit status 2 means unknown/error, 3 means blocked.
 Repeat with a new read-only inventory rather than retrying automatically.
 
