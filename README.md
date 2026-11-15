@@ -2,8 +2,10 @@
 
 **Borrow spare compute from your personal device without sacrificing responsiveness.**
 
-SpareCore is open-source, opt-in compute capacity management. The first platform is
-macOS: it observes power, CPU, memory pressure, swap traffic, thermals and idle time.
+SpareCore is open-source, opt-in compute capacity management for user-owned devices.
+The first supported sensor platform is macOS: it observes power, CPU, memory pressure,
+swap traffic, thermals and idle time. Hostnames and cluster identities are deployment
+configuration, not required project names or hard-coded product concepts.
 
 > **Pre-alpha / observe only.** The current menu displays hypothetical Off,
 > Light, and Boost eligibility. It does not start a VM, join Kubernetes, or run CI.
@@ -80,12 +82,12 @@ real-world latency tests are completed. Do not run untrusted CI on personal devi
 - [x] Full Lima Ubuntu 24.04 LTS VM with kernel device and cgroups verified
 - [ ] Guided installer/wizard with explicit confirmation before mutations
 - [x] Dedicated Lima guest Tailscale identity and bidirectional Pod network smoke
-- [x] K3s ARM64 node named zombie joined, with NoSchedule taint and strict
-      resource reservations; restart/rejoin verified using existing certificates
+- [x] Pilot K3s ARM64 worker joined a cluster with NoSchedule taint and
+      strict resource reservations; restart/rejoin and Pod networking verified
 - [x] Read-only worker state/transition planner with stale-status guard
 
-- [x] Manual, narrowly scoped **cordon-only** fence command (opt-in; not deployed
-      or wired to macOS; no automatic worker admission)
+- [x] Generic **cordon-only** fence command with explicit node selection
+      (manual, not deployed or wired to macOS)
 - [ ] Safe owner-priority VM/Node actuator, scoped GitOps RBAC and official ARC
 - [ ] Linux and rootless Termux adapters
 

@@ -23,7 +23,10 @@ Read docs/INSTALLATION.md for help and docs/K3S_PILOT.md for a manual pilot.
   a trusted cluster administration host, not the Mac, and never authorizes
   an unattended VM shutdown by itself.
 
-- scripts/fence-zombie.py is a separate, OPTIONAL manual cordon-only tool for
-  a trusted cluster-side host with narrowly scoped node RBAC. It must never be
-  invoked automatically from macOS or with cluster-admin credentials.
-  No uncordon/drain/eviction/VM control is permitted by that tool.
+- The optional scripts/fence-node.py is generic, node-name parameterized and
+  manual cordon-only; run it only from a trusted cluster-side host with scoped
+  credentials, never automatically on a personal device.
+- Public library/runtime code must not depend on deployment-specific names
+  (personal machines, cluster nodes, cloud tenants, domains or private paths).
+  Keep pilot configuration and local Kubernetes manifests separate from the
+  reusable implementation; avoid adding new machine-specific defaults.
