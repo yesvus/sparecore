@@ -12,7 +12,10 @@ def main(argv=None):
     parser.add_argument("--macos-pressure", action="store_true",
                         help="Read macOS memory pressure when deciding")
     parser.add_argument("--json", action="store_true", help="Output doctor results as JSON")
+    parser.add_argument("--vm", help="Existing Lima VM name (worker inspection only)")
     args = parser.parse_args(argv)
+    if args.vm and (args.command != "worker" or args.input):
+        parser.error("--vm is supported only for worker inspection without --input")
 
     if args.command == "doctor":
         from .doctor import report
@@ -30,7 +33,7 @@ def main(argv=None):
 
     if args.command == "worker" and not args.input:
         from .worker_status import snapshot
-        details = snapshot()
+        details = snapshot(vm_name=args.vm)
         print(json.dumps(details, indent=2))
         return 0
     if not args.input:
