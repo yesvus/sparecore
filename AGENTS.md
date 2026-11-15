@@ -19,9 +19,13 @@ Read docs/INSTALLATION.md for help and docs/K3S_PILOT.md for a manual pilot.
   start a VM, cordon/drain/uncordon a node or claim to have done so.
 - Never put a cluster-admin kubeconfig on the owner laptop.
 
-- The optional scripts/check-zombie-drain.py is a READ-ONLY snapshot for
-  a trusted cluster administration host, not the Mac, and never authorizes
-  an unattended VM shutdown by itself.
+- The optional scripts/check-node-drain.py requires explicit --node and
+  --runner-namespace, and is a READ-ONLY cluster-host snapshot, never
+  permission for unattended VM shutdown.
+- The macOS worker inspector requires --vm to select an existing guest.
+  Never hard-code a maintainer's VM into the public runtime.
+- Keep pilot identities in historical documentation, separate from product
+  defaults and reusable unit tests.
 
 - The optional scripts/fence-node.py is generic, node-name parameterized and
   manual cordon-only; run it only from a trusted cluster-side host with scoped
