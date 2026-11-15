@@ -22,3 +22,8 @@ Read docs/INSTALLATION.md for help and docs/K3S_PILOT.md for a manual pilot.
 - The optional scripts/check-zombie-drain.py is a READ-ONLY snapshot for
   a trusted cluster administration host, not the Mac, and never authorizes
   an unattended VM shutdown by itself.
+
+- scripts/fence-zombie.py is a separate, OPTIONAL manual cordon-only tool for
+  a trusted cluster-side host with narrowly scoped node RBAC. It must never be
+  invoked automatically from macOS or with cluster-admin credentials.
+  No uncordon/drain/eviction/VM control is permitted by that tool.

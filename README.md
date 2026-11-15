@@ -83,6 +83,9 @@ real-world latency tests are completed. Do not run untrusted CI on personal devi
 - [x] K3s ARM64 node named zombie joined, with NoSchedule taint and strict
       resource reservations; restart/rejoin verified using existing certificates
 - [x] Read-only worker state/transition planner with stale-status guard
+
+- [x] Manual, narrowly scoped **cordon-only** fence command (opt-in; not deployed
+      or wired to macOS; no automatic worker admission)
 - [ ] Safe owner-priority VM/Node actuator, scoped GitOps RBAC and official ARC
 - [ ] Linux and rootless Termux adapters
 
