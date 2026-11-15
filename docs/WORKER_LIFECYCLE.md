@@ -14,12 +14,14 @@ The new stateless advisory planner can be used without Kubernetes,
 admin tokens, or service installation:
 
 ~~~sh
-python3 -m sparecore worker
+python3 -m sparecore worker --vm edge-worker-01
 python3 -m sparecore worker --input '{"tier":"boost","vm":"stopped","node_ready":null,"node_cordoned":true,"workloads":0,"enabled":true,"admission_verified":false}'
 ~~~
 
-The first command reads local macOS Hammerspoon/Lima state and explicitly
-reports that cluster state was not queried. The second plans a theoretical
+The first command reads macOS Hammerspoon and only an explicitly selected
+Lima guest (replace the example with the name of your existing VM).
+Without --vm, guest status is unknown rather than auto-selected.
+The command explicitly reports that cluster state was not queried. The second plans a theoretical
 transition from supplied facts. Both always return applied=false.
 Neither command starts a VM, talks to Kubernetes, or changes any file.
 
@@ -148,30 +150,22 @@ References: https://kubernetes.io/docs/concepts/scheduling-eviction/api-eviction
 and https://kubernetes.io/docs/reference/access-authn-authz/rbac/ .
 
 
-## Read-only cluster drain preflight (Gurbet only)
+## Read-only node drain preflight (generic)
 
-From a trusted admin host with an existing kubeconfig, run:
+On a trusted cluster-administration host with the required read privileges:
 
 ~~~sh
-python3 scripts/check-zombie-drain.py
+python3 scripts/check-node-drain.py --node edge-worker-01 \
+  --runner-namespace arc-edge --context YOUR_CONTEXT
 ~~~
 
-The script calls ONLY kubectl get for Node zombie and a Pod inventory
-filtered by spec.nodeName=zombie. It never creates credentials or
-changes Node/Pod/VM state. Exit status 0 indicates no_pods_observed and
-the node is cordoned with its SpareCore NoSchedule taint; exit status 3
-indicates admission is open, a foreign workload exists, or a trusted ARC
-Pod still needs explicit eviction review. Failure to query the API or parse
-the response returns exit status 2 (unknown_fail_closed).
-
-No Pods observed is NOT permission to stop a VM. This is one snapshot,
-not a race-free lease or proof that every in-flight job finished. The
-eventual controller must re-check shortly before shutdown and enforce
-a separate bounded drain/PDB policy.
-
-Never run this tool on macOS by copying a cluster-admin kubeconfig. The
-fenced admission authority remains distinct from the future namespaced
-Eviction API authority.
+Replace both example identities and context for your installation. The
+preflight performs ONLY kubectl GET on the selected Node and a Pod inventory
+filtered to that Node, requiring cordon and a project NoSchedule taint.
+Exit 0 means no Pods observed (not permission to shut down the VM); exit
+3 means scheduling open, foreign Pods or runner Pods needing review; exit
+2 means unknown/fail-closed. Never copy cluster-admin credentials onto
+a personal laptop.
 
 ## Optional manual node admission fence (not deployed)
 

@@ -59,6 +59,13 @@ the guarded worker actuator is implemented. Battery power always blocks compute.
 
 See [installation and troubleshooting](docs/INSTALLATION.md).
 
+Inspect a **selected existing** Lima guest with:
+`python3 -m sparecore worker --vm YOUR_VM_NAME`.
+No VM is guessed or started if --vm is omitted. The optional read-only
+Kubernetes drain preflight requires explicit `--node` and
+`--runner-namespace` (see [worker lifecycle](docs/WORKER_LIFECYCLE.md)).
+
+
 ## Components
 
 | Layer | Implementation |
