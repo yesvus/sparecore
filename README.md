@@ -99,6 +99,7 @@ real-world latency tests are completed. Do not run untrusted CI on personal devi
 - [ ] Linux and rootless Termux adapters
 
 [Worker lifecycle (read-only)](docs/WORKER_LIFECYCLE.md) ·
+[Historical pilot evidence](docs/PILOT_HISTORY.md) ·
 [Architecture](docs/ARCHITECTURE.md) ·
 [Current Lima k3s pilot](docs/LIMA_PILOT.md) ·
 [Historical OrbStack pilot](docs/K3S_PILOT.md) ·
