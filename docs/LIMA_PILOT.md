@@ -35,6 +35,11 @@ For a new Mac, adapt these commands only after reviewing resource headroom.
 The example guest name below is `sparecore-worker`; replace it consistently
 in both creation and enrollment commands if you choose another name.
 Only create the guest when it does not already exist on your Mac.
+For enrollment, choose a lowercase DNS-safe guest name containing only
+letters, digits and internal hyphens. The **read-only** Lima inspector
+supports additional Lima names (for example dots and underscores), but the
+enrollment helper rejects names unsuitable for `tailscale up --hostname`
+**before** starting the VM. The example name satisfies both constraints.
 
 ~~~sh
 brew install lima

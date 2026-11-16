@@ -106,6 +106,13 @@ class WorkerReadOnlyTests(unittest.TestCase):
         self.assertFalse(result["applied"])
 
 
+    def test_enrollment_rejects_non_dns_guest_before_any_host_command(self):
+        for name in ("under_score", "Ubuntu-20.04", "example.com"):
+            p = subprocess.run(["bash", "scripts/enroll-lima-tailscale.sh", name],
+                               capture_output=True, text=True)
+            self.assertEqual(p.returncode, 2)
+            self.assertIn("Invalid VM name", p.stdout)
+
     def test_worker_cli_rejects_explicit_empty_input_conflict(self):
         result = subprocess.run([sys.executable, "-m", "sparecore", "worker",
                                  "--vm", "worker-b", "--input", ""],

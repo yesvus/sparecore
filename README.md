@@ -4,8 +4,8 @@
 
 SpareCore is open-source, opt-in compute capacity management for user-owned devices.
 The first supported sensor platform is macOS: it observes power, CPU, memory pressure,
-swap traffic, thermals and idle time. Hostnames and cluster identities are deployment
-configuration, not required project names or hard-coded product concepts.
+swap traffic, thermals and idle time. Kubernetes Node and Lima VM identities
+are explicit operator inputs; no production deployment is implied.
 
 > **Pre-alpha / observe only.** The current menu displays hypothetical Off,
 > Light, and Boost eligibility. It does not start a VM, join Kubernetes, or run CI.
