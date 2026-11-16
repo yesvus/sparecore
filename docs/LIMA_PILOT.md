@@ -22,7 +22,7 @@ Ubuntu 24.04.5 LTS with an independent kernel and these verified properties:
 
 Documentation: https://lima-vm.io/docs/config/vmtype/vz/
 
-## Existing Zombie setup
+## Historical maintainer pilot (not required for new users)
 
 The VM is called sparecore-zombie, but the future Kubernetes node will be
 called zombie. The Ubuntu guest is configured and stopped. Official Tailscale
@@ -31,31 +31,41 @@ the guest as a distinct tailnet device. The tested K3s agent is installed,
 but is DISABLED at boot and STOPPED when the VM is off. The Kubernetes
 Node object named zombie remains cordoned and tainted.
 
-For other Macs, use these commands only after reviewing resource headroom:
+For a new Mac, adapt these commands only after reviewing resource headroom.
+The example guest name below is `sparecore-worker`; replace it consistently
+in both creation and enrollment commands if you choose another name.
+Only create the guest when it does not already exist on your Mac.
+For enrollment, choose a lowercase DNS-safe guest name containing only
+letters, digits and internal hyphens. The **read-only** Lima inspector
+supports additional Lima names (for example dots and underscores), but the
+enrollment helper rejects names unsuitable for `tailscale up --hostname`
+**before** starting the VM. The example name satisfies both constraints.
 
 ~~~sh
 brew install lima
-limactl create --name=sparecore-zombie --vm-type=vz \
+limactl create --name=sparecore-worker --vm-type=vz \
   --cpus=2 --memory=2 --disk=20 --plain --mount-none \
   --containerd=none --set '.networkOpts.hostLoopback=false'   --tty=false template:ubuntu-24.04
 ~~~
 
-No automatic boot. This instance already exists on Zombie; do not recreate it.
+No automatic boot. The historical maintainer VM is `sparecore-zombie`,
+not the example `sparecore-worker`; do not recreate the historical VM.
 
 ## Enroll guest (one time, explicit owner approval)
 
 From the SpareCore checkout on the Mac, run interactively:
 
 ~~~sh
-bash scripts/enroll-lima-tailscale.sh
+bash scripts/enroll-lima-tailscale.sh sparecore-worker
 ~~~
 
 The script verifies AC power, memory safety, user-priority mode and VM limits.
 After typed consent, the official Tailscale CLI prints a private browser login
 URL for this *new* Linux guest. Do not paste that URL into public repos or logs.
 The script verifies registration and stops the VM on completion or failure.
-This step has already been performed on Zombie and should not be repeated
-unless repairing or re-enrolling the VM.
+For the maintainer's historical test environment, enrollment was already
+performed. Do not repeat enrollment of any active guest without a specific
+recovery reason and owner approval.
 
 Do NOT copy the Mac's Tailscale identity or reuse the still-stopped OrbStack
 guest's credentials. After the Lima replacement works, review retirement of

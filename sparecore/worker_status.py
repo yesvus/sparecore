@@ -1,6 +1,8 @@
 """Read-only Mac worker inspection. No kubeconfig, no subprocess shells."""
 import json
 import platform
+import re
+import shutil
 import subprocess
 from typing import Optional
 
@@ -15,7 +17,15 @@ def _run(args, timeout=5):
         return None
 
 
-def _guest_summary():
+def _guest_summary(vm_name=None):
+    """Inspect only an explicitly selected Lima guest."""
+    if vm_name is None:
+        return {"vm": "unknown", "isolation_verified": False,
+                "reason": "No VM selected; pass --vm NAME"}
+    if not isinstance(vm_name, str) or not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", vm_name):
+        return {"vm": "unknown", "isolation_verified": False,
+                "reason": "Invalid Lima VM name"}
     output = _run(["limactl", "list", "--json"])
     if output is None:
         return {"vm": "unknown", "isolation_verified": False,
@@ -23,7 +33,7 @@ def _guest_summary():
     try:
         # Lima emits JSON-lines; never infer success from a missing instance.
         machines = [json.loads(line) for line in output.splitlines() if line.strip()]
-        matches = [x for x in machines if x.get("name") == "sparecore-zombie"]
+        matches = [x for x in machines if x.get("name") == vm_name]
         if len(matches) != 1:
             raise ValueError("Missing or duplicate owned VM")
         m = matches[0]
@@ -40,7 +50,7 @@ def _guest_summary():
         )
         vm = {"Running": "running", "Stopped": "stopped"}.get(m.get("status"), "broken")
         return {
-            "vm": vm, "isolation_verified": bool(limits_valid),
+            "name": vm_name, "vm": vm, "isolation_verified": bool(limits_valid),
             "cpus": m.get("cpus"), "memory_bytes": m.get("memory"),
             "status": m.get("status"),
         }
@@ -54,7 +64,8 @@ def _host_summary():
     ac = bool(p is not None and "Now drawing from 'AC Power'" in p)
     pressure = _run(["/usr/sbin/sysctl", "-n", "kern.memorystatus_vm_pressure_level"],
                     timeout=2)
-    result = _run(["/opt/homebrew/bin/hs", "-c",
+    hs_cli = shutil.which("hs") or "/opt/homebrew/bin/hs"
+    result = _run([hs_cli, "-c",
                    "local tier, reason = sparecore.status(); return tier, reason, sparecore.statusAge()"], timeout=4)
     tier = "off"
     reason = "Hammerspoon state unavailable or stale"
@@ -76,7 +87,7 @@ def _host_summary():
             "memory_pressure": pressure, "status_age_seconds": age}
 
 
-def snapshot():
+def snapshot(vm_name=None):
     """Return a safe, non-authoritative overview; does not query Kubernetes."""
     if platform.system() != "Darwin":
         return {"applied": False, "host": {"tier": "off", "reason": "macOS only"},
@@ -84,7 +95,7 @@ def snapshot():
                 "plan": {"step": "none", "reason": "Unsupported host"},
                 "cluster": "not queried: no kubeconfig is used"}
     host = _host_summary()
-    guest = _guest_summary()
+    guest = _guest_summary(vm_name)
     tier = host["tier"] if guest["isolation_verified"] else "off"
     state = WorkerState(tier=tier, vm=guest["vm"], node_ready=None,
                         node_cordoned=None, workloads=None, enabled=False)

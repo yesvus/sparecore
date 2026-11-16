@@ -1,7 +1,7 @@
-# EXAMPLE ONLY. Not installed by the SpareCore CLI.
-# Apply through the owner's GitOps cluster repo after review, not on the Mac.
-# This account may ONLY get/patch the named zombie Node.
-# It cannot list Pods, evict Pods, read Secrets, or operate on other Nodes.
+# Illustrative manifest ONLY. SpareCore never automatically installs this.
+# Change edge-worker-01 and the example ServiceAccount name for YOUR cluster.
+# Follow your normal GitOps review and independent RBAC validation.
+# Never copy privileged Kubernetes credentials to a personal device.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -12,29 +12,29 @@ metadata:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: zombie-admission
+  name: edge-worker-admission
   namespace: sparecore-system
 automountServiceAccountToken: false
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: sparecore-zombie-admission
+  name: sparecore-edge-worker-admission
 rules:
   - apiGroups: [""]
     resources: ["nodes"]
-    resourceNames: ["zombie"]
+    resourceNames: ["edge-worker-01"]
     verbs: ["get", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: sparecore-zombie-admission
+  name: sparecore-edge-worker-admission
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: sparecore-zombie-admission
+  name: sparecore-edge-worker-admission
 subjects:
   - kind: ServiceAccount
-    name: zombie-admission
+    name: edge-worker-admission
     namespace: sparecore-system

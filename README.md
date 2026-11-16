@@ -4,9 +4,8 @@
 
 SpareCore is open-source, opt-in compute capacity management for user-owned devices.
 The first supported sensor platform is macOS: it observes power, CPU, memory pressure,
-swap traffic, thermals and idle time. The new manual admission fence accepts an explicit Kubernetes node identity;
-older local VM inspector and pilot examples are still name-specific until
-follow-up genericization in PR #17. No production deployment is implied.
+swap traffic, thermals and idle time. Kubernetes Node and Lima VM identities
+are explicit operator inputs; no production deployment is implied.
 
 > **Pre-alpha / observe only.** The current menu displays hypothetical Off,
 > Light, and Boost eligibility. It does not start a VM, join Kubernetes, or run CI.
@@ -60,6 +59,13 @@ the guarded worker actuator is implemented. Battery power always blocks compute.
 
 See [installation and troubleshooting](docs/INSTALLATION.md).
 
+Inspect a **selected existing** Lima guest with:
+`python3 -m sparecore worker --vm YOUR_VM_NAME`.
+No VM is guessed or started if --vm is omitted. The optional read-only
+Kubernetes drain preflight requires explicit `--node` and
+`--runner-namespace` (see [worker lifecycle](docs/WORKER_LIFECYCLE.md)).
+
+
 ## Components
 
 | Layer | Implementation |
@@ -92,7 +98,8 @@ real-world latency tests are completed. Do not run untrusted CI on personal devi
 - [ ] Safe owner-priority VM/Node actuator, scoped GitOps RBAC and official ARC
 - [ ] Linux and rootless Termux adapters
 
-[Worker lifecycle and optional manual cordon](docs/WORKER_LIFECYCLE.md) ·
+[Worker lifecycle and manual cordon](docs/WORKER_LIFECYCLE.md) ·
+[Historical pilot evidence](docs/PILOT_HISTORY.md) ·
 [Architecture](docs/ARCHITECTURE.md) ·
 [Current Lima k3s pilot](docs/LIMA_PILOT.md) ·
 [Historical OrbStack pilot](docs/K3S_PILOT.md) ·

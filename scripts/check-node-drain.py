@@ -1,21 +1,35 @@
 #!/usr/bin/env python3
-"""Read-only zombie Kubernetes drain preflight. Run on a trusted admin host.
+"""Read-only Kubernetes drain preflight. Run on a trusted admin host.
 
 Never run this with kubeconfig copied to a personal Mac. This intentionally
 does not implement eviction, cordon, drain, VM control or token management.
 """
+import argparse
 import json
+import re
 import subprocess
 import sys
 
 
-NODE = "zombie"
-RUNNER_NAMESPACE = "arc-sparecore"
+def validate_name(value, kind="node"):
+    if not isinstance(value, str) or not 1 <= len(value) <= 253:
+        raise ValueError("Invalid " + kind)
+    parts = value.split(".")
+    if (kind == "namespace" and len(parts) != 1) or any(
+            len(part) > 63 or not re.fullmatch(
+                r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", part) for part in parts):
+        raise ValueError("Invalid " + kind)
+    return value
 
 
-def _get(args):
+def _get(args, context=None):
+    command = ["kubectl"]
+    if context is not None:
+        if not isinstance(context, str) or not context.strip():
+            raise ValueError("Invalid explicit Kubernetes context")
+        command += ["--context", context]
     result = subprocess.run(
-        ["kubectl", "get"] + list(args) + ["-o", "json"],
+        command + ["get"] + list(args) + ["-o", "json"],
         capture_output=True,
         text=True,
         stdin=subprocess.DEVNULL,
@@ -25,12 +39,15 @@ def _get(args):
     return json.loads(result.stdout)
 
 
-def inspect(node, pods):
+def inspect(node, pods, node_name, runner_namespace,
+            taint_key="sparecore", taint_value="true"):
     """Pure check: 0 pods only means inventory is clear, not safe to stop."""
+    validate_name(node_name)
+    validate_name(runner_namespace, "namespace")
     if not isinstance(node, dict) or not isinstance(pods, dict):
         raise ValueError("Invalid API result")
     metadata = node.get("metadata")
-    if not isinstance(metadata, dict) or metadata.get("name") != NODE:
+    if not isinstance(metadata, dict) or metadata.get("name") != node_name:
         raise ValueError("Wrong Kubernetes node identity")
     spec = node.get("spec")
     if not isinstance(spec, dict):
@@ -43,8 +60,8 @@ def inspect(node, pods):
     if not isinstance(taints, list):
         raise ValueError("Unexpected Node taints")
     tainted = any(
-        isinstance(t, dict) and t.get("key") == "sparecore"
-        and t.get("value") == "true" and t.get("effect") == "NoSchedule"
+        isinstance(t, dict) and t.get("key") == taint_key
+        and t.get("value") == taint_value and t.get("effect") == "NoSchedule"
         for t in taints
     )
     foreign = []
@@ -58,15 +75,15 @@ def inspect(node, pods):
             raise ValueError("Incomplete Pod entry")
         if not meta.get("name") or not meta.get("namespace"):
             raise ValueError("Pod identity incomplete")
-        if p_spec.get("nodeName") != NODE:
-            raise ValueError("Pod inventory was not filtered to zombie")
+        if p_spec.get("nodeName") != node_name:
+            raise ValueError("Pod inventory was not filtered to selected Node")
         status = p.get("status")
         if status is not None and not isinstance(status, dict):
             raise ValueError("Invalid Pod status")
         entry = {"namespace": meta["namespace"], "name": meta["name"],
                  "phase": (status or {}).get("phase", "Unknown"),
                  "terminating": bool(meta.get("deletionTimestamp"))}
-        if entry["namespace"] == RUNNER_NAMESPACE:
+        if entry["namespace"] == runner_namespace:
             runner.append(entry)
         else:
             foreign.append(entry)
@@ -80,7 +97,7 @@ def inspect(node, pods):
         status = "no_pods_observed"
 
     return {
-        "node": NODE,
+        "node": node_name,
         "status": status,
         "node_cordoned": cordoned,
         "taint_present": tainted,
@@ -94,17 +111,27 @@ def inspect(node, pods):
     }
 
 
-def main():
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Read-only Kubernetes drain preflight")
+    parser.add_argument("--node", required=True, help="Exact Kubernetes node")
+    parser.add_argument("--runner-namespace", required=True,
+                        help="Only trusted runner namespace")
+    parser.add_argument("--context", help="Read-only kubectl context")
+    parser.add_argument("--taint-key", default="sparecore")
+    parser.add_argument("--taint-value", default="true")
+    args = parser.parse_args(argv)
     try:
-        node = _get(["node", NODE])
+        node_name = validate_name(args.node)
+        namespace = validate_name(args.runner_namespace, "namespace")
+        node = _get(["node", node_name], args.context)
         pods = _get(["pods", "--all-namespaces", "--field-selector",
-                     "spec.nodeName=" + NODE])
-        result = inspect(node, pods)
+                     "spec.nodeName=" + node_name], args.context)
+        result = inspect(node, pods, node_name, namespace,
+                         args.taint_key, args.taint_value)
     except (OSError, subprocess.SubprocessError, json.JSONDecodeError,
             ValueError, TypeError, KeyError, AttributeError) as exc:
-        print(json.dumps({"node": NODE, "status": "unknown_fail_closed",
-                          "applied": False,
-                          "reason": type(exc).__name__}), flush=True)
+        print(json.dumps({"node": args.node, "status": "unknown_fail_closed",
+                          "applied": False, "reason": type(exc).__name__}))
         return 2
     print(json.dumps(result, indent=2))
     return 0 if result["status"] == "no_pods_observed" else 3
