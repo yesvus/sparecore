@@ -32,7 +32,9 @@ but is DISABLED at boot and STOPPED when the VM is off. The Kubernetes
 Node object named zombie remains cordoned and tainted.
 
 For a new Mac, adapt these commands only after reviewing resource headroom.
-The guest name below is an example; choose your own:
+The example guest name below is `sparecore-worker`; replace it consistently
+in both creation and enrollment commands if you choose another name.
+Only create the guest when it does not already exist on your Mac.
 
 ~~~sh
 brew install lima
@@ -41,7 +43,8 @@ limactl create --name=sparecore-worker --vm-type=vz \
   --containerd=none --set '.networkOpts.hostLoopback=false'   --tty=false template:ubuntu-24.04
 ~~~
 
-No automatic boot. This instance already exists on Zombie; do not recreate it.
+No automatic boot. The historical maintainer VM is `sparecore-zombie`,
+not the example `sparecore-worker`; do not recreate the historical VM.
 
 ## Enroll guest (one time, explicit owner approval)
 
