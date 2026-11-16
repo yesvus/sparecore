@@ -98,8 +98,10 @@ class FenceTests(unittest.TestCase):
         self.assertEqual(ctx, "ctx")
         self.assertEqual(args[:3], ["patch", "node", OTHER_NODE])
         operations = json.loads(args[args.index("-p") + 1])
-        self.assertEqual(operations[0]["value"], "node-uid")
-        self.assertEqual(operations[1]["value"], "42")
+        self.assertEqual(operations[:2], [
+            {"op": "test", "path": "/metadata/uid", "value": "node-uid"},
+            {"op": "test", "path": "/metadata/resourceVersion", "value": "42"},
+        ])
         self.assertEqual(operations[2],
                          {"op": "add", "path": "/spec/unschedulable", "value": True})
 
@@ -143,8 +145,24 @@ class FenceTests(unittest.TestCase):
         self.assertEqual(cmd[:3], ["kubectl", "--context", "ctx"])
         self.assertEqual(cmd[3:6], ["get", "node", OTHER_NODE])
         self.assertEqual(run.call_args.kwargs["stdin"], subprocess.DEVNULL)
+        self.assertFalse(run.call_args.kwargs.get("shell", False))
+        self.assertFalse(run.call_args.kwargs["check"])
 
-    @patch.object(module, "_node", side_effect=TimeoutError)
+    @patch.object(module, "patch_cordon", side_effect=subprocess.TimeoutExpired(["kubectl"], 10))
+    @patch.object(module, "scoped_authority", return_value=True)
+    @patch.object(module, "_node", return_value=node())
+    def test_patch_transport_timeout_is_unknown(self, get_node, auth, patch_cordon):
+        result, code = module.execute(NODE, "scoped", True, NODE)
+        self.assertEqual((result["status"], result["applied"], code),
+                         ("patch_outcome_unknown", "unknown", 2))
+        get_node.assert_called_once()
+
+    def test_optional_taint_fields_do_not_block_fence(self):
+        result = node()
+        result["spec"]["taints"][0]["timeAdded"] = "2026-11-14T00:00:00Z"
+        self.assertFalse(module.inspect(result, NODE)["cordoned"])
+
+    @patch.object(module, "_node", side_effect=subprocess.TimeoutExpired(["kubectl"], 10))
     def test_api_failure_fails_closed(self, get_node):
         self.assertEqual(module.main(["--node", NODE]), 2)
 

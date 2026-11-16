@@ -112,8 +112,10 @@ It cannot uncordon, drain, evict, schedule CI, or start/stop a VM.
 A user configures their own Kubernetes Node name and scoped context; no pilot
 hostnames or cluster identifiers are built into the tool. Use a dedicated
 identity with `get/patch` permission on **only** that Node, not cluster-admin.
-The tool checks effective permission for the chosen Node and rejects unscoped
-`patch nodes`; the operator must also independently audit Role rules.
+Before an actual patch to a schedulable Node, the tool checks effective
+permission for that Node and rejects unscoped `patch nodes`. Read-only runs
+and already-cordoned targets do not test RBAC. This is not a complete proof
+of scoped authorization: the operator must independently audit Role rules.
 The Node must have a matching `sparecore=true:NoSchedule` quarantine taint
 (or an explicitly supplied alternative taint key/value).
 
@@ -132,6 +134,7 @@ required. An atomic JSON Patch checks UID/version then sets the scheduling
 flag; a fresh GET verifies success. Unknown outcome is reported as
 `applied="unknown"`, never silently retried or treated as successful.
 
-This command is not wired to the Mac, GitOps, ARC, or any daemon. Actual
-operation still requires an operator-reviewed scoped RBAC deployment,
-PDB-aware evacuation rules and independent host responsiveness tests.
+This command is not wired to the Mac, GitOps, ARC, or any daemon. Manual
+cordon requires operator-reviewed node-scoped RBAC. PDB-aware evacuation,
+ARC and host responsiveness gates are prerequisites for later automated
+lifecycle operation, not for performing a conservative manual cordon.

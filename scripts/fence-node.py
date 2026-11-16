@@ -128,7 +128,14 @@ def execute(name, context=None, apply=False, confirmation=None,
         return {"node": name, "status": "blocked_rbac_scope",
                 "applied": False}, 3
 
-    patch_cordon(context, name, before)
+    # An API timeout or transport error at the mutation boundary might occur
+    # after the server applied the patch. Never report applied=false here.
+    try:
+        patch_cordon(context, name, before)
+    except (ValueError, RuntimeError, subprocess.SubprocessError,
+            OSError, json.JSONDecodeError):
+        return {"node": name, "status": "patch_outcome_unknown",
+                "applied": "unknown"}, 2
     # GET failure after patch means success is unknown, not 'applied=false'.
     try:
         after = inspect(_node(context, name), name, taint_key, taint_value)
