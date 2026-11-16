@@ -23,7 +23,7 @@ def _guest_summary(vm_name=None):
         return {"vm": "unknown", "isolation_verified": False,
                 "reason": "No VM selected; pass --vm NAME"}
     if not isinstance(vm_name, str) or not re.fullmatch(
-            r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", vm_name):
+            r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", vm_name):
         return {"vm": "unknown", "isolation_verified": False,
                 "reason": "Invalid Lima VM name"}
     output = _run(["limactl", "list", "--json"])
