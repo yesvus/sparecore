@@ -54,6 +54,10 @@ class LimaOneShotTests(unittest.TestCase):
                                            apply=True, confirm_vm=VM,
                                            confirm_node="different-node")
         self.assertEqual((result["status"], code), ("blocked_confirmation", 3))
+        result, code = control.execute("start", VM, NODE, NS, ALIAS,
+                                       apply=True, confirm_vm="different-vm",
+                                       confirm_node=NODE)
+        self.assertEqual((result["status"], code), ("blocked_confirmation", 3))
         probe.assert_not_called()
 
     @patch.object(control.platform, "system", return_value="Darwin")
@@ -96,41 +100,50 @@ class LimaOneShotTests(unittest.TestCase):
 
     def test_ssh_command_uses_no_shell_or_interactive_stdin(self):
         report = {"status": "no_pods_observed", "node": NODE,
+                  "bound_vm": VM, "node_uid": "node-uid-1",
+                  "vm_binding_verified": True,
                   "node_cordoned": True, "taint_present": True,
                   "foreign_pods": [], "runner_pods": [], "applied": False}
         with patch.object(control.subprocess, "run",
                           return_value=Mock(returncode=0,
                                             stdout=json.dumps(report))) as run:
-            out = control._probe_node(ALIAS, NODE, NS)
+            out = control._probe_node(ALIAS, VM, NODE, NS)
         self.assertEqual(out["status"], "no_pods_observed")
         args = run.call_args.args[0]
         self.assertEqual(args[0], "ssh")
         self.assertIn("StrictHostKeyChecking=yes", args)
         self.assertIn("BatchMode=yes", args)
         self.assertIn("sparecore-readonly-node-check", args)
+        self.assertEqual(args[-2:], ["--vm", VM])
         self.assertEqual(run.call_args.kwargs["stdin"], subprocess.DEVNULL)
         self.assertFalse(run.call_args.kwargs.get("shell", False))
 
     def test_cluster_probe_rejects_foreign_workload_or_wrong_node(self):
         good = {"status": "no_pods_observed", "node": NODE,
+                "bound_vm": VM, "node_uid": "node-uid-1",
+                "vm_binding_verified": True,
                 "node_cordoned": True, "taint_present": True,
                 "foreign_pods": [], "runner_pods": [], "applied": False}
         for bad in (dict(good, node="other"),
+                    dict(good, bound_vm="different-vm"),
+                    dict(good, node_uid=""),
+                    dict(good, vm_binding_verified=False),
                     dict(good, status="review_runner_evictions"),
                     dict(good, node_cordoned=False),
                     dict(good, runner_pods=[{"name": "busy"}]),
+                    dict(good, foreign_pods=[{"name": "foreign"}]),
                     dict(good, taint_present=False),
                     dict(good, applied=True)):
             with patch.object(control, "_command",
                               return_value=Mock(returncode=0,
                                                 stdout=json.dumps(bad))):
                 with self.assertRaises(RuntimeError):
-                    control._probe_node(ALIAS, NODE, NS)
+                    control._probe_node(ALIAS, VM, NODE, NS)
 
     @patch.object(control.platform, "system", return_value="Darwin")
     def test_start_checks_twice_and_verifies_running(self, platform):
         with patch.object(control, "_guest_summary",
-                          side_effect=[STOPPED, RUNNING]) as guest, \
+                          side_effect=[STOPPED, STOPPED, RUNNING]) as guest, \
                 patch.object(control, "_host_summary",
                              side_effect=[SAFE, SAFE]) as host, \
                 patch.object(control, "_probe_node", return_value={}) as probe, \
@@ -139,9 +152,10 @@ class LimaOneShotTests(unittest.TestCase):
             result, code = invoke("start", True)
         self.assertEqual((result["status"], result["applied"], code),
                          ("start_verified", True, 0))
-        self.assertEqual(guest.call_count, 2)
+        self.assertEqual(guest.call_count, 3)
         self.assertEqual(host.call_count, 2)
-        probe.assert_called_once_with(ALIAS, NODE, NS)
+        self.assertEqual(probe.call_count, 2)
+        probe.assert_called_with(ALIAS, VM, NODE, NS)
         self.assertEqual(cmd.call_args.args[0][:4],
                          ["limactl", "start", "--tty=false", "--timeout=70s"])
 
@@ -160,7 +174,7 @@ class LimaOneShotTests(unittest.TestCase):
     @patch.object(control.platform, "system", return_value="Darwin")
     def test_stop_only_when_node_is_confirmed_empty(self, platform):
         with patch.object(control, "_guest_summary",
-                          side_effect=[RUNNING, STOPPED]), \
+                          side_effect=[RUNNING, RUNNING, STOPPED]), \
                 patch.object(control, "_host_summary") as host, \
                 patch.object(control, "_probe_node", return_value={}), \
                 patch.object(control, "_command",
@@ -187,7 +201,29 @@ class LimaOneShotTests(unittest.TestCase):
                 patch.object(control, "_probe_node") as probe:
             result, code = invoke("stop", True)
         self.assertEqual((result["status"], code), ("already_stopped", 0))
-        probe.assert_not_called()
+        probe.assert_called_once_with(ALIAS, VM, NODE, NS)
+
+    @patch.object(control.platform, "system", return_value="Darwin")
+    def test_guest_isolation_changed_before_mutation(self, platform):
+        changed = dict(STOPPED, isolation_verified=False)
+        with patch.object(control, "_guest_summary", side_effect=[STOPPED, changed]), \
+                patch.object(control, "_host_summary", return_value=SAFE), \
+                patch.object(control, "_probe_node", return_value={}) as probe, \
+                patch.object(control, "_command") as command:
+            result, code = invoke("start", True)
+        self.assertEqual((result["status"], code), ("blocked_vm_state_changed", 3))
+        probe.assert_called_once()
+        command.assert_not_called()
+
+    @patch.object(control.platform, "system", return_value="Darwin")
+    def test_second_cluster_probe_failure_prevents_stop(self, platform):
+        with patch.object(control, "_guest_summary", return_value=RUNNING), \
+                patch.object(control, "_probe_node", side_effect=[{}, RuntimeError("offline")]) as probe, \
+                patch.object(control, "_command") as command:
+            result, code = invoke("stop", True)
+        self.assertEqual((result["status"], code), ("blocked_cluster_changed", 3))
+        self.assertEqual(probe.call_count, 2)
+        command.assert_not_called()
 
 
 if __name__ == "__main__":
