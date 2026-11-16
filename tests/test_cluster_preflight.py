@@ -13,7 +13,8 @@ spec.loader.exec_module(module)
 
 
 def node(cordoned=True, tainted=True):
-    return {"metadata": {"name": "edge-worker-01"}, "spec": {
+    return {"metadata": {"name": "edge-worker-01", "uid": "node-uid-1",
+                         "annotations": {"sparecore.dev/lima-vm": "example-vm"}}, "spec": {
         "unschedulable": cordoned,
         "taints": [{"key": "sparecore", "value": "true",
                     "effect": "NoSchedule"}] if tainted else [],
@@ -33,6 +34,27 @@ class DrainSafetyChecks(unittest.TestCase):
     def test_no_pods_requires_cordon_and_taint(self):
         self.assertEqual(self.inspect(node(), {"items": []})["status"],
                          "no_pods_observed")
+
+    def test_opt_in_vm_binding_must_match_native_node_annotation(self):
+        result = module.inspect(node(), {"items": []}, "edge-worker-01",
+                                "arc-edge", vm_name="example-vm")
+        self.assertEqual(result["bound_vm"], "example-vm")
+        self.assertEqual(result["node_uid"], "node-uid-1")
+        self.assertTrue(result["vm_binding_verified"])
+        for bad_vm in ("wrong-vm", "Upper_wrong?"):
+            with self.assertRaises(ValueError):
+                module.inspect(node(), {"items": []}, "edge-worker-01",
+                               "arc-edge", vm_name=bad_vm)
+        no_annotation = node()
+        no_annotation["metadata"]["annotations"] = {}
+        with self.assertRaises(ValueError):
+            module.inspect(no_annotation, {"items": []}, "edge-worker-01",
+                           "arc-edge", vm_name="example-vm")
+        no_uid = node()
+        del no_uid["metadata"]["uid"]
+        with self.assertRaises(ValueError):
+            module.inspect(no_uid, {"items": []}, "edge-worker-01",
+                           "arc-edge", vm_name="example-vm")
 
     def test_uncordoned_blocks(self):
         self.assertEqual(self.inspect(node(cordoned=False), {"items": []})["status"],
@@ -118,6 +140,17 @@ class DrainSafetyChecks(unittest.TestCase):
     def test_main_no_pods(self, get):
         get.side_effect = [node(), {"items": []}]
         self.assertEqual(module.main(["--node", "edge-worker-01", "--runner-namespace", "arc-edge"]), 0)
+
+    @patch.object(module, "_get")
+    def test_main_with_vm_requires_binding(self, get):
+        get.side_effect = [node(), {"items": []}]
+        self.assertEqual(module.main(["--node", "edge-worker-01",
+                                      "--runner-namespace", "arc-edge",
+                                      "--vm", "example-vm"]), 0)
+        get.side_effect = [node(), {"items": []}]
+        self.assertEqual(module.main(["--node", "edge-worker-01",
+                                      "--runner-namespace", "arc-edge",
+                                      "--vm", "wrong-vm"]), 2)
 
     @patch.object(module, "_get")
     def test_main_pods_block(self, get):
