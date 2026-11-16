@@ -34,3 +34,10 @@ Read docs/INSTALLATION.md for help and docs/K3S_PILOT.md for a manual pilot.
   (personal machines, cluster nodes, cloud tenants, domains or private paths).
   Keep pilot configuration and local Kubernetes manifests separate from the
   reusable implementation; avoid adding new machine-specific defaults.
+
+- scripts/evict-node-runners.py is a manual **trusted-cluster-host only**
+  single-Pod native Eviction API request, never macOS actuator, automated
+  drain, VM shutdown permission or general eviction authorization.
+- Reject Pod/Node inventory uncertainty and any foreign or untrusted Pod.
+  A PDB denial or timeout blocks shutdown; never force-delete Pods.
+  Do not run this script against a live cluster without separate approval.

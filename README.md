@@ -98,7 +98,8 @@ real-world latency tests are completed. Do not run untrusted CI on personal devi
 - [ ] Safe owner-priority VM/Node actuator, scoped GitOps RBAC and official ARC
 - [ ] Linux and rootless Termux adapters
 
-[Worker lifecycle and manual cordon](docs/WORKER_LIFECYCLE.md) ·
+[Worker lifecycle and manual safety gates](docs/WORKER_LIFECYCLE.md) ·
+[One-shot native Eviction gate](docs/EVICTION_GATE.md) ·
 [Historical pilot evidence](docs/PILOT_HISTORY.md) ·
 [Architecture](docs/ARCHITECTURE.md) ·
 [Current Lima k3s pilot](docs/LIMA_PILOT.md) ·
