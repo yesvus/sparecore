@@ -90,7 +90,10 @@ def inspect(node, pods, node_name, namespace, allow_running=False):
             return {"status": "blocked_untrusted_owner", "candidate": None}
         if not isinstance(pm.get("uid"), str) or not pm["uid"]:
             raise ValueError("Pod UID missing")
-        phase = (p.get("status") or {}).get("phase")
+        pod_status = p.get("status")
+        if not isinstance(pod_status, dict):
+            raise ValueError("Pod phase unavailable")
+        phase = pod_status.get("phase")
         if phase not in ("Pending", "Running", "Succeeded", "Failed"):
             return {"status": "blocked_unknown_pod_phase", "candidate": None}
         if phase == "Running" and not allow_running:
@@ -112,17 +115,28 @@ def _inventory(context, node_name):
     )
 
 
-def _verify_namespaced_context(context, namespace):
-    # This is an additional guard, NOT a full proof of RBAC scope.
-    if _run(context, ["auth", "can-i", "create", "pods",
-                      "--subresource=eviction", "-n", namespace]).strip() != "yes":
-        return False
-    for foreign in ("default", "kube-system"):
-        if _run(context, ["auth", "can-i", "create", "pods",
-                          "--subresource=eviction", "-n", foreign]).strip() != "no":
-            return False
-    return True
+def _can_eviction(context, namespace):
+    # kubectl auth can-i often exits 1 for 'no'; treat only exact known
+    # tuples as valid. Unknown response -> fail closed.
+    if not isinstance(context, str) or not context.strip():
+        raise ValueError("Explicit scoped context required")
+    result = subprocess.run(
+        ["kubectl", "--context", context, "auth", "can-i", "create", "pods",
+         "--subresource=eviction", "-n", namespace],
+        capture_output=True, text=True, stdin=subprocess.DEVNULL,
+        timeout=10, check=False,
+    )
+    response = result.stdout.strip()
+    if (response, result.returncode) not in (("yes", 0), ("no", 0), ("no", 1)):
+        raise RuntimeError("Cannot verify Kubernetes authorization")
+    return response == "yes"
 
+
+def _verify_namespaced_context(context, namespace):
+    # Defense in depth only, cannot prove complete RBAC policy.
+    return (_can_eviction(context, namespace)
+            and all(not _can_eviction(context, other)
+                    for other in ("default", "kube-system") if other != namespace))
 
 def execute(node_name, namespace, audit_context, eviction_context,
             apply=False, confirm_node=None, allow_running=False):
@@ -156,8 +170,21 @@ def execute(node_name, namespace, audit_context, eviction_context,
     candidate = fresh["candidate"]
     scoped = _get(eviction_context,
                   ["pod", candidate["name"], "-n", namespace])
-    if (scoped.get("metadata", {}).get("uid") != candidate["uid"]
-            or scoped.get("spec", {}).get("nodeName") != node_name):
+    pod_meta = scoped.get("metadata")
+    pod_spec = scoped.get("spec")
+    pod_status = scoped.get("status")
+    if not all(isinstance(x, dict) for x in (pod_meta, pod_spec, pod_status)):
+        return {"status": "blocked_pod_identity_changed", "applied": False}, 3
+    owners = pod_meta.get("ownerReferences")
+    owner_valid = isinstance(owners, list) and any(
+        isinstance(o, dict) and o.get("kind") == OWNER_KIND
+        and o.get("controller") is True for o in owners)
+    if (pod_meta.get("uid") != candidate["uid"]
+            or pod_spec.get("nodeName") != node_name
+            or pod_meta.get("namespace") != namespace
+            or pod_meta.get("deletionTimestamp")
+            or pod_status.get("phase") != candidate["phase"]
+            or not owner_valid):
         return {"status": "blocked_pod_identity_changed", "applied": False}, 3
     # Native Eviction API observes PDB and graceful termination; never delete.
     request = {
