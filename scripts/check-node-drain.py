@@ -24,7 +24,9 @@ def validate_name(value, kind="node"):
 
 def _get(args, context=None):
     command = ["kubectl"]
-    if context:
+    if context is not None:
+        if not isinstance(context, str) or not context.strip():
+            raise ValueError("Invalid explicit Kubernetes context")
         command += ["--context", context]
     result = subprocess.run(
         command + ["get"] + list(args) + ["-o", "json"],
@@ -39,9 +41,9 @@ def _get(args, context=None):
 
 def inspect(node, pods, node_name, runner_namespace,
             taint_key="sparecore", taint_value="true"):
+    """Pure check: 0 pods only means inventory is clear, not safe to stop."""
     validate_name(node_name)
     validate_name(runner_namespace, "namespace")
-    """Pure check: 0 pods only means inventory is clear, not safe to stop."""
     if not isinstance(node, dict) or not isinstance(pods, dict):
         raise ValueError("Invalid API result")
     metadata = node.get("metadata")
