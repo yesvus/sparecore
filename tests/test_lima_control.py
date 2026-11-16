@@ -15,6 +15,7 @@ SAFE = {"tier": "boost", "on_ac": True, "memory_pressure": "1",
         "status_age_seconds": 3}
 STOPPED = {"name": VM, "vm": "stopped", "isolation_verified": True}
 RUNNING = {"name": VM, "vm": "running", "isolation_verified": True}
+PROBE = {"node_uid": "node-uid-1", "bound_vm": VM, "vm_binding_verified": True}
 
 
 def invoke(action, apply=False):
@@ -39,7 +40,7 @@ class LimaOneShotTests(unittest.TestCase):
     @patch.object(control, "_guest_summary", return_value=STOPPED)
     def test_no_apply_never_starts_vm(self, guest, platform):
         with patch.object(control, "_host_summary", return_value=SAFE), \
-                patch.object(control, "_probe_node", return_value={}), \
+                patch.object(control, "_probe_node", return_value=PROBE), \
                 patch.object(control, "_command") as cmd:
             result, code = invoke("start")
         self.assertEqual((result["status"], result["applied"], code),
@@ -146,7 +147,7 @@ class LimaOneShotTests(unittest.TestCase):
                           side_effect=[STOPPED, STOPPED, RUNNING]) as guest, \
                 patch.object(control, "_host_summary",
                              side_effect=[SAFE, SAFE]) as host, \
-                patch.object(control, "_probe_node", return_value={}) as probe, \
+                patch.object(control, "_probe_node", return_value=PROBE) as probe, \
                 patch.object(control, "_command",
                              return_value=Mock(returncode=0)) as cmd:
             result, code = invoke("start", True)
@@ -164,7 +165,7 @@ class LimaOneShotTests(unittest.TestCase):
         with patch.object(control, "_guest_summary", return_value=STOPPED), \
                 patch.object(control, "_host_summary",
                              side_effect=[SAFE, dict(SAFE, tier="light")]), \
-                patch.object(control, "_probe_node", return_value={}), \
+                patch.object(control, "_probe_node", return_value=PROBE), \
                 patch.object(control, "_command") as cmd:
             result, code = invoke("start", True)
         self.assertEqual((result["status"], code),
@@ -176,7 +177,7 @@ class LimaOneShotTests(unittest.TestCase):
         with patch.object(control, "_guest_summary",
                           side_effect=[RUNNING, RUNNING, STOPPED]), \
                 patch.object(control, "_host_summary") as host, \
-                patch.object(control, "_probe_node", return_value={}), \
+                patch.object(control, "_probe_node", return_value=PROBE), \
                 patch.object(control, "_command",
                              return_value=Mock(returncode=0)) as cmd:
             result, code = invoke("stop", True)
@@ -188,7 +189,7 @@ class LimaOneShotTests(unittest.TestCase):
     @patch.object(control.platform, "system", return_value="Darwin")
     def test_mutation_timeout_never_claims_no_change(self, platform):
         with patch.object(control, "_guest_summary", return_value=RUNNING), \
-                patch.object(control, "_probe_node", return_value={}), \
+                patch.object(control, "_probe_node", return_value=PROBE), \
                 patch.object(control, "_command",
                              side_effect=subprocess.TimeoutExpired(["limactl"], 60)):
             result, code = invoke("stop", True)
@@ -208,11 +209,24 @@ class LimaOneShotTests(unittest.TestCase):
         changed = dict(STOPPED, isolation_verified=False)
         with patch.object(control, "_guest_summary", side_effect=[STOPPED, changed]), \
                 patch.object(control, "_host_summary", return_value=SAFE), \
-                patch.object(control, "_probe_node", return_value={}) as probe, \
+                patch.object(control, "_probe_node", return_value=PROBE) as probe, \
                 patch.object(control, "_command") as command:
             result, code = invoke("start", True)
         self.assertEqual((result["status"], code), ("blocked_vm_state_changed", 3))
         probe.assert_called_once()
+        command.assert_not_called()
+
+    @patch.object(control.platform, "system", return_value="Darwin")
+    def test_changed_node_uid_between_probes_prevents_vm_stop(self, platform):
+        changed = dict(PROBE, node_uid="replaced-node-uid")
+        with patch.object(control, "_guest_summary", return_value=RUNNING), \
+                patch.object(control, "_probe_node",
+                             side_effect=[PROBE, changed]) as probe, \
+                patch.object(control, "_command") as command:
+            result, code = invoke("stop", True)
+        self.assertEqual((result["status"], code),
+                         ("blocked_node_identity_changed", 3))
+        self.assertEqual(probe.call_count, 2)
         command.assert_not_called()
 
     @patch.object(control.platform, "system", return_value="Darwin")
