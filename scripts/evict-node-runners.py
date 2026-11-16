@@ -15,6 +15,7 @@ import sys
 TAINT_KEY = "sparecore"
 TAINT_VALUE = "true"
 OWNER_KIND = "EphemeralRunner"
+OWNER_API = "actions.github.com/v1alpha1"
 
 
 def valid_name(name, namespace=False):
@@ -27,6 +28,26 @@ def valid_name(name, namespace=False):
             r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", bit) for bit in bits):
         raise ValueError("Invalid Kubernetes identity")
     return name
+
+
+def _trusted_owner(metadata):
+    """Require one official ARC controller owner with a stable CRD identity."""
+    refs = metadata.get("ownerReferences")
+    if not isinstance(refs, list):
+        return None
+    controllers = [o for o in refs if isinstance(o, dict) and o.get("controller") is True]
+    if len(controllers) != 1:
+        return None
+    o = controllers[0]
+    if o.get("kind") != OWNER_KIND or o.get("apiVersion") != OWNER_API:
+        return None
+    if not isinstance(o.get("uid"), str) or not o["uid"]:
+        return None
+    try:
+        valid_name(o.get("name"), namespace=True)
+    except ValueError:
+        return None
+    return {"name": o["name"], "uid": o["uid"]}
 
 
 def _run(context, args, payload=None):
@@ -83,10 +104,8 @@ def inspect(node, pods, node_name, namespace, allow_running=False):
             return {"status": "blocked_foreign_workload", "candidate": None}
         if pm.get("deletionTimestamp"):
             return {"status": "blocked_terminating", "candidate": None}
-        owners = pm.get("ownerReferences")
-        if not isinstance(owners, list) or not any(
-                isinstance(o, dict) and o.get("kind") == OWNER_KIND
-                and o.get("controller") is True for o in owners):
+        owner = _trusted_owner(pm)
+        if owner is None:
             return {"status": "blocked_untrusted_owner", "candidate": None}
         if not isinstance(pm.get("uid"), str) or not pm["uid"]:
             raise ValueError("Pod UID missing")
@@ -99,7 +118,7 @@ def inspect(node, pods, node_name, namespace, allow_running=False):
         if phase == "Running" and not allow_running:
             return {"status": "blocked_active_job", "candidate": None}
         candidates.append({"name": pm["name"], "namespace": namespace,
-                           "uid": pm["uid"], "phase": phase})
+                           "uid": pm["uid"], "phase": phase, "owner": owner})
     if len(candidates) > 1:
         return {"status": "blocked_multiple_pods", "candidate": None}
     if not candidates:
@@ -132,11 +151,27 @@ def _can_eviction(context, namespace):
     return response == "yes"
 
 
-def _verify_namespaced_context(context, namespace):
-    # Defense in depth only, cannot prove complete RBAC policy.
-    return (_can_eviction(context, namespace)
-            and all(not _can_eviction(context, other)
-                    for other in ("default", "kube-system") if other != namespace))
+def _verify_namespaced_context(audit_context, eviction_context, namespace):
+    """Require access in target namespace and deny across every current peer.
+
+    The audit identity must list namespaces. This is a point-in-time
+    authorization check; operator must independently audit RoleBindings.
+    """
+    inventory = _get(audit_context, ["namespaces"])
+    if not isinstance(inventory, dict) or not isinstance(inventory.get("items"), list):
+        raise ValueError("Cannot enumerate namespaces for RBAC verification")
+    if not 1 <= len(inventory["items"]) <= 100:
+        raise ValueError("Unexpected namespace inventory size")
+    found = set()
+    for obj in inventory["items"]:
+        name = (obj.get("metadata") or {}).get("name") if isinstance(obj, dict) else None
+        found.add(valid_name(name, namespace=True))
+    if len(found) != len(inventory["items"]) or namespace not in found:
+        raise ValueError("Namespace inventory incomplete or contains duplicates")
+    for name in sorted(found):
+        if _can_eviction(eviction_context, name) != (name == namespace):
+            return False
+    return True
 
 def execute(node_name, namespace, audit_context, eviction_context,
             apply=False, confirm_node=None, allow_running=False):
@@ -159,7 +194,7 @@ def execute(node_name, namespace, audit_context, eviction_context,
     if not apply:
         return {"status": "would_request_eviction", "applied": False,
                 "candidate": before["candidate"]}, 0
-    if not _verify_namespaced_context(eviction_context, namespace):
+    if not _verify_namespaced_context(audit_context, eviction_context, namespace):
         return {"status": "blocked_eviction_rbac", "applied": False}, 3
 
     # Re-read immediately before the one permitted write. Any change blocks.
@@ -175,17 +210,24 @@ def execute(node_name, namespace, audit_context, eviction_context,
     pod_status = scoped.get("status")
     if not all(isinstance(x, dict) for x in (pod_meta, pod_spec, pod_status)):
         return {"status": "blocked_pod_identity_changed", "applied": False}, 3
-    owners = pod_meta.get("ownerReferences")
-    owner_valid = isinstance(owners, list) and any(
-        isinstance(o, dict) and o.get("kind") == OWNER_KIND
-        and o.get("controller") is True for o in owners)
     if (pod_meta.get("uid") != candidate["uid"]
             or pod_spec.get("nodeName") != node_name
             or pod_meta.get("namespace") != namespace
             or pod_meta.get("deletionTimestamp")
             or pod_status.get("phase") != candidate["phase"]
-            or not owner_valid):
+            or _trusted_owner(pod_meta) != candidate["owner"]):
         return {"status": "blocked_pod_identity_changed", "applied": False}, 3
+    # Check the referenced *real* ARC CRD, not only the untrusted Pod claim.
+    owner = candidate["owner"]
+    arc = _get(audit_context, ["ephemeralrunner", owner["name"], "-n", namespace])
+    arc_meta = arc.get("metadata") if isinstance(arc, dict) else None
+    if (not isinstance(arc_meta, dict)
+            or arc.get("apiVersion") != OWNER_API
+            or arc.get("kind") != OWNER_KIND
+            or arc_meta.get("name") != owner["name"]
+            or arc_meta.get("namespace") != namespace
+            or arc_meta.get("uid") != owner["uid"]):
+        return {"status": "blocked_arc_owner_missing_or_changed", "applied": False}, 3
     # Native Eviction API observes PDB and graceful termination; never delete.
     request = {
         "apiVersion": "policy/v1", "kind": "Eviction",
