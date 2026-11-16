@@ -112,7 +112,7 @@ def execute(action, vm, node, namespace, ssh_alias, apply=False,
 
     # A fresh SSH probe is required even in read-only mode. No cached proof.
     try:
-        _probe_node(ssh_alias, vm, node, namespace)
+        first_probe = _probe_node(ssh_alias, vm, node, namespace)
     except (OSError, RuntimeError, subprocess.SubprocessError, ValueError):
         return {"status": "blocked_cluster_unknown", "applied": False}, 3
     if already:
@@ -136,9 +136,13 @@ def execute(action, vm, node, namespace, ssh_alias, apply=False,
             fresh_guest.get("isolation_verified") is not True):
         return {"status": "blocked_vm_state_changed", "applied": False}, 3
     try:
-        _probe_node(ssh_alias, vm, node, namespace)
+        last_probe = _probe_node(ssh_alias, vm, node, namespace)
     except (OSError, RuntimeError, subprocess.SubprocessError, ValueError):
         return {"status": "blocked_cluster_changed", "applied": False}, 3
+    if (last_probe.get("node_uid") != first_probe.get("node_uid")
+            or last_probe.get("bound_vm") != first_probe.get("bound_vm")
+            or last_probe.get("vm_binding_verified") is not True):
+        return {"status": "blocked_node_identity_changed", "applied": False}, 3
     command = ["limactl", action, vm]
     if action == "start":
         command = ["limactl", "start", "--tty=false", "--timeout=70s", vm]
