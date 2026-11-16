@@ -3,7 +3,9 @@
 Read README.md and INSTALL_PROMPT.md before any installation task.
 Read docs/INSTALLATION.md for help and docs/K3S_PILOT.md for a manual pilot.
 
-- The main CLI and Hammerspoon menu are observe-only. Never imply otherwise.
+- The main `python3 -m sparecore` CLI and Hammerspoon menu are observe-only.
+  The separate `python3 -m sparecore.lima_control` CLI is manual opt-in,
+  NOT wired to the Hammerspoon menu or an unattended service.
 - Preserve existing user configuration. Do not overwrite Hammerspoon init.lua.
 - Ask before installing packages, granting permissions, connecting a tailnet,
   creating VMs, joining Kubernetes, or changing secrets/production systems.
@@ -41,3 +43,10 @@ Read docs/INSTALLATION.md for help and docs/K3S_PILOT.md for a manual pilot.
 - Reject Pod/Node inventory uncertainty and any foreign or untrusted Pod.
   A PDB denial or timeout blocks shutdown; never force-delete Pods.
   Do not run this script against a live cluster without separate approval.
+
+- The one-shot Lima CLI must never bypass the Mac boost/AC/pressure gate on
+  start, the fresh trusted cluster-side cordon-and-zero-Pod preflight for
+  either direction, or exact VM+Node confirmation for apply. It must not
+  carry Kubernetes credentials, invoke guest kubelet, patch Nodes, or evict
+  Pods. Neither a read-only cluster snapshot nor successful VM boot proves
+  safe automatic lifecycle. Real VM action needs separate owner approval.

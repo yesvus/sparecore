@@ -54,8 +54,10 @@ sparecore = dofile("/absolute/path/to/sparecore/adapters/hammerspoon/init.lua")
 Do not overwrite an existing Hammerspoon configuration. Choose Reload Config.
 A single CPU-shaped icon should appear in the menu bar.
 
-The menu has Auto, On, Off modes. These are **safety decisions only** until
-the guarded worker actuator is implemented. Battery power always blocks compute.
+The menu has Auto, On, Off modes. These are **observe-only eligibility**
+decisions, not automatic VM operations. A separate, explicit manual Lima
+start/stop CLI is available under [guarded VM control](docs/LIMA_CONTROL.md).
+Battery power always blocks new compute.
 
 See [installation and troubleshooting](docs/INSTALLATION.md).
 
@@ -95,11 +97,14 @@ real-world latency tests are completed. Do not run untrusted CI on personal devi
 
 - [x] Generic **cordon-only** fence command with explicit node selection
       (manual, not deployed or wired to macOS)
-- [ ] Safe owner-priority VM/Node actuator, scoped GitOps RBAC and official ARC
+- [x] Manual, confirmation-gated Lima VM start/stop primitive using an independent
+      read-only SSH check of the cordoned, empty Node (not installed)
+- [ ] Automatic owner-priority VM/Node lifecycle and scoped ARC deployment
 - [ ] Linux and rootless Termux adapters
 
 [Worker lifecycle and manual safety gates](docs/WORKER_LIFECYCLE.md) ·
 [One-shot native Eviction gate](docs/EVICTION_GATE.md) ·
+[Manual guarded Lima control](docs/LIMA_CONTROL.md) ·
 [Historical pilot evidence](docs/PILOT_HISTORY.md) ·
 [Architecture](docs/ARCHITECTURE.md) ·
 [Current Lima k3s pilot](docs/LIMA_PILOT.md) ·

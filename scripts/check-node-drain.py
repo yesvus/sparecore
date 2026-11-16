@@ -10,6 +10,17 @@ import re
 import subprocess
 import sys
 
+# Operational binding; set deliberately on the owned Node by a trusted
+# cluster operator. The macOS host never patches Node annotations.
+VM_BINDING_ANNOTATION = "sparecore.dev/lima-vm"
+
+
+def validate_vm_name(name):
+    if not isinstance(name, str) or not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", name):
+        raise ValueError("Invalid explicitly selected Lima VM")
+    return name
+
 
 def validate_name(value, kind="node"):
     if not isinstance(value, str) or not 1 <= len(value) <= 253:
@@ -40,7 +51,7 @@ def _get(args, context=None):
 
 
 def inspect(node, pods, node_name, runner_namespace,
-            taint_key="sparecore", taint_value="true"):
+            taint_key="sparecore", taint_value="true", vm_name=None):
     """Pure check: 0 pods only means inventory is clear, not safe to stop."""
     validate_name(node_name)
     validate_name(runner_namespace, "namespace")
@@ -49,6 +60,15 @@ def inspect(node, pods, node_name, runner_namespace,
     metadata = node.get("metadata")
     if not isinstance(metadata, dict) or metadata.get("name") != node_name:
         raise ValueError("Wrong Kubernetes node identity")
+    node_uid = None
+    if vm_name is not None:
+        validate_vm_name(vm_name)
+        node_uid = metadata.get("uid")
+        annotation = metadata.get("annotations")
+        if (not isinstance(node_uid, str) or not node_uid
+                or not isinstance(annotation, dict)
+                or annotation.get(VM_BINDING_ANNOTATION) != vm_name):
+            raise ValueError("VM/Node binding absent, incomplete or mismatched")
     spec = node.get("spec")
     if not isinstance(spec, dict):
         raise ValueError("Node spec unavailable")
@@ -98,6 +118,8 @@ def inspect(node, pods, node_name, runner_namespace,
 
     return {
         "node": node_name,
+        **({"node_uid": node_uid, "bound_vm": vm_name,
+            "vm_binding_verified": True} if vm_name is not None else {}),
         "status": status,
         "node_cordoned": cordoned,
         "taint_present": tainted,
@@ -117,6 +139,7 @@ def main(argv=None):
     parser.add_argument("--runner-namespace", required=True,
                         help="Only trusted runner namespace")
     parser.add_argument("--context", help="Read-only kubectl context")
+    parser.add_argument("--vm", help="Optional exact Lima VM, verified against trusted Node annotation")
     parser.add_argument("--taint-key", default="sparecore")
     parser.add_argument("--taint-value", default="true")
     args = parser.parse_args(argv)
@@ -127,7 +150,7 @@ def main(argv=None):
         pods = _get(["pods", "--all-namespaces", "--field-selector",
                      "spec.nodeName=" + node_name], args.context)
         result = inspect(node, pods, node_name, namespace,
-                         args.taint_key, args.taint_value)
+                         args.taint_key, args.taint_value, args.vm)
     except (OSError, subprocess.SubprocessError, json.JSONDecodeError,
             ValueError, TypeError, KeyError, AttributeError) as exc:
         print(json.dumps({"node": args.node, "status": "unknown_fail_closed",
