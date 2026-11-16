@@ -14,8 +14,10 @@ def main(argv=None):
     parser.add_argument("--json", action="store_true", help="Output doctor results as JSON")
     parser.add_argument("--vm", help="Existing Lima VM name (worker inspection only)")
     args = parser.parse_args(argv)
-    if args.vm and (args.command != "worker" or args.input):
+    if args.vm is not None and (args.command != "worker" or args.input is not None):
         parser.error("--vm is supported only for worker inspection without --input")
+    if args.vm == "":
+        parser.error("--vm requires a non-empty existing Lima guest name")
 
     if args.command == "doctor":
         from .doctor import report
@@ -31,12 +33,12 @@ def main(argv=None):
             print(details["warning"])
         return 0
 
-    if args.command == "worker" and not args.input:
+    if args.command == "worker" and args.input is None:
         from .worker_status import snapshot
         details = snapshot(vm_name=args.vm)
         print(json.dumps(details, indent=2))
         return 0
-    if not args.input:
+    if args.input is None:
         parser.error("--input is required for decide")
     try:
         data = json.loads(args.input)
