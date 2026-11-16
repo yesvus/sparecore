@@ -9,7 +9,7 @@ if [[ $# -eq 1 && "$1" == "--help" ]]; then
 fi
 [[ $# -eq 1 ]] || { echo "Specify exactly one existing Lima VM"; exit 2; }
 name=$1
-[[ "$name" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] || {
+[[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ ]] || {
   echo "Invalid VM name"; exit 2;
 }
 [[ -t 0 ]] || { echo "Run in an interactive Mac Terminal"; exit 2; }
