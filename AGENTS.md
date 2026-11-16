@@ -22,3 +22,11 @@ Read docs/INSTALLATION.md for help and docs/K3S_PILOT.md for a manual pilot.
 - The optional scripts/check-zombie-drain.py is a READ-ONLY snapshot for
   a trusted cluster administration host, not the Mac, and never authorizes
   an unattended VM shutdown by itself.
+
+- The optional scripts/fence-node.py is generic, node-name parameterized and
+  manual cordon-only; run it only from a trusted cluster-side host with scoped
+  credentials, never automatically on a personal device.
+- Public library/runtime code must not depend on deployment-specific names
+  (personal machines, cluster nodes, cloud tenants, domains or private paths).
+  Keep pilot configuration and local Kubernetes manifests separate from the
+  reusable implementation; avoid adding new machine-specific defaults.

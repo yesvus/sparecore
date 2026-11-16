@@ -172,3 +172,41 @@ a separate bounded drain/PDB policy.
 Never run this tool on macOS by copying a cluster-admin kubeconfig. The
 fenced admission authority remains distinct from the future namespaced
 Eviction API authority.
+
+## Optional manual node admission fence (not deployed)
+
+`scripts/fence-node.py` is a **generic** and narrowly scoped cordon-only
+safety tool. It is *not* an automatic actuator and must run only from a trusted
+cluster-side host, never by copying cluster credentials to a personal device.
+Its only write sets `spec.unschedulable=true` on the explicitly named Node.
+It cannot uncordon, drain, evict, schedule CI, or start/stop a VM.
+
+A user configures their own Kubernetes Node name and scoped context; no pilot
+hostnames or cluster identifiers are built into the tool. Use a dedicated
+identity with `get/patch` permission on **only** that Node, not cluster-admin.
+Before an actual patch to a schedulable Node, the tool checks effective
+permission for that Node and rejects unscoped `patch nodes`. Read-only runs
+and already-cordoned targets do not test RBAC. This is not a complete proof
+of scoped authorization: the operator must independently audit Role rules.
+The Node must have a matching `sparecore=true:NoSchedule` quarantine taint
+(or an explicitly supplied alternative taint key/value).
+
+~~~sh
+# Read-only inventory:
+python3 scripts/fence-node.py --node edge-worker-01 --context MY_SCOPED_CONTEXT
+# Manual change, only with explicit authorization:
+python3 scripts/fence-node.py --node edge-worker-01 --context MY_SCOPED_CONTEXT \
+  --apply --confirm-node edge-worker-01
+~~~
+
+Default output is `would_cordon` / `already_cordoned` with
+`applied=false`. For mutations, context, target name, matching confirmation,
+specific RBAC, quarantine taint and fresh Node UID/resourceVersion are
+required. An atomic JSON Patch checks UID/version then sets the scheduling
+flag; a fresh GET verifies success. Unknown outcome is reported as
+`applied="unknown"`, never silently retried or treated as successful.
+
+This command is not wired to the Mac, GitOps, ARC, or any daemon. Manual
+cordon requires operator-reviewed node-scoped RBAC. PDB-aware evacuation,
+ARC and host responsiveness gates are prerequisites for later automated
+lifecycle operation, not for performing a conservative manual cordon.
