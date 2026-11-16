@@ -16,7 +16,9 @@ and no one needs these machines or accounts to run SpareCore. Use the generic
   and NO for patch nodes/gurbet, patch nodes/jelly, list nodes, list
   Pods, create pods/eviction, and get Secrets.
 - All temporary RBAC objects were deleted after the permission test.
-  No credentials were minted or installed on Zombie.
+  No temporary Kubernetes RBAC credentials from this test were minted or
+  installed on Zombie; its existing tailnet identity and kubelet
+  certificates are separate.
 - The only persistent changes are application code/docs. VM and Node
   admission remain disabled; the Node stays cordoned and tainted.
 
