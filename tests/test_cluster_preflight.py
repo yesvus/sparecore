@@ -100,6 +100,16 @@ class DrainSafetyChecks(unittest.TestCase):
         self.assertEqual(command[:2], ["kubectl", "get"])
         self.assertEqual(run.call_args.kwargs["stdin"], subprocess.DEVNULL)
 
+    @patch.object(module.subprocess, "run")
+    def test_empty_context_rejected_before_kubectl(self, run):
+        self.assertEqual(module.main(["--node", "edge-worker-01",
+                                      "--runner-namespace", "arc-edge",
+                                      "--context", ""]), 2)
+        run.assert_not_called()
+
+    def test_inspector_keeps_docstring(self):
+        self.assertIn("Pure check", module.inspect.__doc__)
+
     @patch.object(module, "_get", side_effect=TimeoutError())
     def test_no_api_fails_closed(self, _):
         self.assertEqual(module.main(["--node", "edge-worker-01", "--runner-namespace", "arc-edge"]), 2)
