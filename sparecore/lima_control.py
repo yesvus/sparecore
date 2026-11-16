@@ -41,14 +41,14 @@ def _command(argv, timeout):
                           stdin=subprocess.DEVNULL, timeout=timeout, check=False)
 
 
-def _probe_node(ssh_alias, node, namespace):
+def _probe_node(ssh_alias, vm, node, namespace):
     """Run an independent, on-demand cluster-side READ-ONLY check."""
     cmd = [
         "ssh", "-o", "BatchMode=yes", "-o", "NumberOfPasswordPrompts=0",
         "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=4",
         "-o", "ConnectionAttempts=1", ssh_alias,
         "sparecore-readonly-node-check",
-        "--node", node, "--runner-namespace", namespace,
+        "--node", node, "--runner-namespace", namespace, "--vm", vm,
     ]
     result = _command(cmd, timeout=12)
     if result.returncode:
@@ -59,6 +59,15 @@ def _probe_node(ssh_alias, node, namespace):
         raise RuntimeError("Malformed cluster preflight") from None
     if not isinstance(report, dict) or report.get("node") != node:
         raise RuntimeError("Wrong cluster Node")
+    # A human confirmation of two independent strings is not proof that
+    # this Lima guest corresponds to the target Kubernetes Node. The
+    # cluster-side helper verifies the operator-managed native Node annotation
+    # and includes the stable Kubernetes Node UID in its evidence.
+    if (report.get("bound_vm") != vm
+            or report.get("vm_binding_verified") is not True
+            or not isinstance(report.get("node_uid"), str)
+            or not report.get("node_uid")):
+        raise RuntimeError("VM/Node binding not verified by trusted cluster")
     if (report.get("status") != "no_pods_observed"
             or report.get("node_cordoned") is not True
             or report.get("taint_present") is not True
@@ -88,11 +97,10 @@ def execute(action, vm, node, namespace, ssh_alias, apply=False,
     before = guest.get("vm")
     if before not in ("running", "stopped"):
         return {"status": "blocked_vm_unknown", "applied": False}, 3
-    if (action == "start" and before == "running") or (
-            action == "stop" and before == "stopped"):
-        return {"status": "already_" + before, "applied": False}, 0
+    already = (action == "start" and before == "running") or (
+        action == "stop" and before == "stopped")
 
-    if action == "start":
+    if action == "start" and not already:
         host = _host_summary()
         age = host.get("status_age_seconds")
         # The 2-minute stability gate is already enforced by Hammerspoon;
@@ -104,9 +112,11 @@ def execute(action, vm, node, namespace, ssh_alias, apply=False,
 
     # A fresh SSH probe is required even in read-only mode. No cached proof.
     try:
-        _probe_node(ssh_alias, node, namespace)
+        _probe_node(ssh_alias, vm, node, namespace)
     except (OSError, RuntimeError, subprocess.SubprocessError, ValueError):
         return {"status": "blocked_cluster_unknown", "applied": False}, 3
+    if already:
+        return {"status": "already_" + before, "applied": False}, 0
     if not apply:
         return {"status": "would_" + action, "applied": False}, 0
 
@@ -118,6 +128,17 @@ def execute(action, vm, node, namespace, ssh_alias, apply=False,
                 or h.get("memory_pressure") != "1"
                 or not isinstance(age, (int, float)) or not 0 <= age <= 60):
             return {"status": "blocked_host_safety_changed", "applied": False}, 3
+    # Re-check both the guest configuration AND the server-side Node
+    # binding immediately before mutation. An earlier snapshot never gives
+    # durable authority to operate on this Mac or the cluster.
+    fresh_guest = _guest_summary(vm)
+    if (fresh_guest != guest or
+            fresh_guest.get("isolation_verified") is not True):
+        return {"status": "blocked_vm_state_changed", "applied": False}, 3
+    try:
+        _probe_node(ssh_alias, vm, node, namespace)
+    except (OSError, RuntimeError, subprocess.SubprocessError, ValueError):
+        return {"status": "blocked_cluster_changed", "applied": False}, 3
     command = ["limactl", action, vm]
     if action == "start":
         command = ["limactl", "start", "--tty=false", "--timeout=70s", vm]
