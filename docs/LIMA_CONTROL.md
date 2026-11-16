@@ -17,19 +17,31 @@ scheduling, manages the guest kubelet, evicts Pods, or installs kubeconfigs.
   gate. The CLI double-checks host safety immediately before `limactl start`.
   The Hammerspoon `Auto / On / Off` menu is **still observe-only**.
 - `--vm` selects an existing Lima VZ ARM64 guest. Read-only inspection
-  enforces existing 2 vCPU / 2 GiB RAM / 20 GiB disk and isolation limits.
+  enforces **at most** 2 vCPU / 2 GiB RAM / 20 GiB disk and isolation limits.
   Missing, broken or unexpectedly configured guests are never actuated.
 - `--ssh-alias` names an explicitly configured, pinned-host-key SSH
   destination for a **trusted cluster-side read-only** helper. The helper
   command is `sparecore-readonly-node-check --node NAME
   --runner-namespace NS`; it must execute the existing
-  `scripts/check-node-drain.py` from the trusted administration host
-  and return its JSON without any extra banners. An account with a forced
-  command/restricted SSH key is strongly preferred. No Kubernetes kubeconfig
-  or long-lived cluster credential is placed on the personal Mac.
-- Every invocation requires a fresh SSH result of
-  `status=no_pods_observed`, `node_cordoned=true`,
-  `taint_present=true`, `runner_pods=[]` and `foreign_pods=[]`.
+  `scripts/check-node-drain.py --vm VM` from the trusted administration
+  host and return its JSON without extra banners. A trusted operator must
+  **separately approve and place** an exact
+  `sparecore.dev/lima-vm: VM` annotation on the Node, using the cluster-side
+  administrative identity; **this PR does not write the annotation**.
+  The read-only inspector verifies this value against `--vm`, requires
+  a non-empty immutable Node UID and returns `bound_vm`,
+  `vm_binding_verified=true`, `node_uid`. The Mac requires this evidence
+  and checks that the Node UID remains unchanged between both preflight
+  checks. An account with a forced command/restricted SSH key is strongly
+  preferred. No Kubernetes kubeconfig or long-lived cluster credential is
+  placed on the personal Mac. A plain `check-node-drain.py` invocation
+  without `--vm` does **not** prove VM ownership or satisfy this actuator.
+- Every invocation, **including no-op requests**, requires a fresh SSH
+  result of `status=no_pods_observed`, `node_cordoned=true`,
+  `taint_present=true`, `runner_pods=[]`, `foreign_pods=[]`,
+  and the verified exact VM/Node binding. Applied start/stop requests
+  repeat this cluster check and VM isolation inspection immediately before
+  the Lima operation; an identity or configuration change blocks mutation.
   SSH errors, unsafe inventory, unknown Node, stale host status, failure
   to verify the Lima VM, or any parsing failure are blocking conditions.
 - `--apply` requires **both** `--confirm-vm` and `--confirm-node`
@@ -42,12 +54,18 @@ scheduling, manages the guest kubelet, evicts Pods, or installs kubeconfigs.
 
 ## Example (identities are placeholders)
 
-On the trusted Linux host, operator configures a read-only command
-`sparecore-readonly-node-check` that invokes the checked-in
-`scripts/check-node-drain.py` for the specific authorized Node and runner
-namespace, using an existing cluster-side audit context. A forced-command
-SSH identity must not allow shell or port forwarding. Never create such a
-key, copy kubeconfig, or change SSH policy without separate owner approval.
+On the trusted Linux host, an operator must configure a read-only
+`sparecore-readonly-node-check` command that invokes the checked-in
+`scripts/check-node-drain.py --vm VM` for the specific Node/namespace
+using a preexisting cluster-side audit context. The command must verify
+the operator-provisioned exact `sparecore.dev/lima-vm` Node annotation;
+it must not manufacture `vm_binding_verified` or ignore mismatches.
+The command and any forced-command SSH parser are **not installed by this
+PR**, and the real Zombie Node's annotation has not been modified.
+A restricted SSH identity must not allow general shell or port forwarding.
+The Mac must use pinned SSH host keys. Never create such a key, copy
+kubeconfig, annotate a live Node or change SSH policy without separate
+owner approval.
 
 On the Mac, after verifying the SSH alias has a pinned known host key:
 
@@ -73,15 +91,17 @@ action, and PDB-aware evacuation from
 
 ## What remains before unattended Auto / On / Off
 
-1. A strictly scoped, operator-reviewed cluster control path for
+1. An operator-reviewed exact Node-to-Lima VM annotation and trusted
+   restricted read-only SSH command; neither has been provisioned live.
+2. A strictly scoped, operator-reviewed cluster control path for
    native cordon, safe uncordon, eviction/drain and final Pod inventory;
    no broad laptop credential or privileged custom scheduling service.
-2. Real macOS Hammerspoon mode/event integration, wake/sleep/AC loss
+3. Real macOS Hammerspoon mode/event integration, wake/sleep/AC loss
    behavior, restart-rate limiting and safe unknown-state handling.
-3. The dedicated trusted ARC namespace/scale-set credentials and
+4. The dedicated trusted ARC namespace/scale-set credentials and
    manually approved Argo sync from ops #842, and actual ephemeral CI
    job cancellation/retry/PDB validation.
-4. A minimum 48–72 hour real-device study of interactive latency, swap,
+5. A minimum 48–72 hour real-device study of interactive latency, swap,
    thermals, CPU load and battery impact. Node exporter/Prometheus
    integration should reuse the existing observability stack.
 
