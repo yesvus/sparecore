@@ -31,12 +31,19 @@ def pod(name="arc-runner-1", namespace=NS, where=NODE, phase="Pending",
     return {
         "metadata": {
             "name": name, "namespace": namespace, "uid": uid,
-            "ownerReferences": [{"kind": owner, "controller": True,
-                                 "name": "run", "uid": "owner-uid"}],
+            "ownerReferences": [{"apiVersion": "actions.github.com/v1alpha1",
+                                 "kind": owner, "controller": True,
+                                 "name": "arc-runner", "uid": "owner-uid"}],
         },
         "spec": {"nodeName": where},
         "status": {"phase": phase},
     }
+
+
+def arc_owner(uid="owner-uid"):
+    return {"apiVersion": "actions.github.com/v1alpha1",
+            "kind": "EphemeralRunner",
+            "metadata": {"name": "arc-runner", "namespace": NS, "uid": uid}}
 
 
 class EvictionGateTests(unittest.TestCase):
@@ -64,6 +71,16 @@ class EvictionGateTests(unittest.TestCase):
         ):
             result = gate.inspect(node(), {"items": [p]}, NODE, NS)
             self.assertEqual(result["status"], reason)
+
+    def test_unofficial_or_missing_arc_owner_identity_blocks(self):
+        forged = pod()
+        forged["metadata"]["ownerReferences"][0]["apiVersion"] = "fake.github.com/v1alpha1"
+        self.assertEqual(gate.inspect(node(), {"items": [forged]}, NODE, NS)["status"],
+                         "blocked_untrusted_owner")
+        forged["metadata"]["ownerReferences"][0]["apiVersion"] = "actions.github.com/v1alpha1"
+        forged["metadata"]["ownerReferences"][0]["uid"] = ""
+        self.assertEqual(gate.inspect(node(), {"items": [forged]}, NODE, NS)["status"],
+                         "blocked_untrusted_owner")
 
     def test_running_jobs_require_explicit_interruption_choice(self):
         active = {"items": [pod(phase="Running")]}
@@ -123,23 +140,36 @@ class EvictionGateTests(unittest.TestCase):
             self.assertEqual(gate.execute(NODE, NS, "a", "b")[1], 3)
             inventory.assert_not_called()
 
-    def test_scoped_auth_uses_namespaced_allow_and_denies(self):
-        with patch.object(gate.subprocess, "run") as process:
+    def test_scoped_auth_uses_complete_namespace_inventory(self):
+        namespaces = {"items": [
+            {"metadata": {"name": NS}},
+            {"metadata": {"name": "default"}},
+            {"metadata": {"name": "unexpected-peer"}},
+        ]}
+        with patch.object(gate, "_get", return_value=namespaces), \
+                patch.object(gate.subprocess, "run") as process:
             process.side_effect = [
                 Mock(returncode=0, stdout="yes\n"),
                 Mock(returncode=1, stdout="no\n"),
                 Mock(returncode=0, stdout="no\n"),
             ]
-            self.assertTrue(gate._verify_namespaced_context("scoped", NS))
+            self.assertTrue(gate._verify_namespaced_context("audit", "scoped", NS))
+            self.assertEqual(process.call_count, 3)
             for call in process.call_args_list:
                 self.assertIn("--subresource=eviction", call.args[0])
                 self.assertEqual(call.kwargs["stdin"], subprocess.DEVNULL)
                 self.assertFalse(call.kwargs.get("shell", False))
-        with patch.object(gate.subprocess, "run", return_value=Mock(returncode=0, stdout="yes\n")):
-            self.assertFalse(gate._verify_namespaced_context("broad", NS))
-        with patch.object(gate.subprocess, "run", return_value=Mock(returncode=3, stdout="???\n")):
+        with patch.object(gate, "_get", return_value=namespaces), \
+                patch.object(gate.subprocess, "run", return_value=Mock(returncode=0, stdout="yes\n")):
+            self.assertFalse(gate._verify_namespaced_context("audit", "broad", NS))
+        with patch.object(gate, "_get", return_value=namespaces), \
+                patch.object(gate.subprocess, "run", return_value=Mock(returncode=3, stdout="???\n")):
             with self.assertRaises(RuntimeError):
-                gate._verify_namespaced_context("broken", NS)
+                gate._verify_namespaced_context("audit", "broken", NS)
+        with patch.object(gate, "_get", return_value={"items": [
+                {"metadata": {"name": "different"}}]}):
+            with self.assertRaises(ValueError):
+                gate._verify_namespaced_context("audit", "scoped", NS)
 
     def _apply(self, candidate=None, run_side_effect=None):
         target = candidate or pod()
@@ -148,7 +178,7 @@ class EvictionGateTests(unittest.TestCase):
                 patch.object(gate, "_inventory", side_effect=[
                     (ctx["node"], ctx["pods"]), (ctx["node"], ctx["pods"])]), \
                 patch.object(gate, "_verify_namespaced_context", return_value=True), \
-                patch.object(gate, "_get", return_value=target), \
+                patch.object(gate, "_get", side_effect=[target, arc_owner()]), \
                 patch.object(gate, "_run", side_effect=run_side_effect) as run:
             result, code = gate.execute(NODE, NS, "audit", "evict",
                                         apply=True, confirm_node=NODE)
@@ -178,7 +208,7 @@ class EvictionGateTests(unittest.TestCase):
                              ("eviction_blocked_or_unknown", "unknown", 2))
             self.assertFalse(result["shutdown_authorized"])
 
-    def test_stale_node_or_changed_pod_blocks_before_mutation(self):
+    def test_changed_node_blocks_before_mutation(self):
         first_node = node()
         second_node = node()
         second_node["metadata"]["uid"] = "replacement"
@@ -191,6 +221,30 @@ class EvictionGateTests(unittest.TestCase):
             result, code = gate.execute(NODE, NS, "audit", "evict", True, NODE)
             self.assertEqual((result["status"], code),
                              ("blocked_inventory_changed", 3))
+            run.assert_not_called()
+
+    def test_second_inventory_changed_pod_blocks_before_mutation(self):
+        first = {"items": [pod()]}
+        second = {"items": [pod(uid="recreated-pod")]}
+        with patch.object(gate.platform, "system", return_value="Linux"), \
+                patch.object(gate, "_inventory", side_effect=[
+                    (node(), first), (node(), second)]), \
+                patch.object(gate, "_verify_namespaced_context", return_value=True), \
+                patch.object(gate, "_run") as run:
+            result, code = gate.execute(NODE, NS, "audit", "evict", True, NODE)
+            self.assertEqual((result["status"], code),
+                             ("blocked_inventory_changed", 3))
+            run.assert_not_called()
+
+    def test_missing_real_arc_crd_blocks_before_mutation(self):
+        with patch.object(gate.platform, "system", return_value="Linux"), \
+                patch.object(gate, "_inventory", return_value=(node(), {"items": [pod()]})), \
+                patch.object(gate, "_verify_namespaced_context", return_value=True), \
+                patch.object(gate, "_get", side_effect=[pod(), arc_owner(uid="different")]), \
+                patch.object(gate, "_run") as run:
+            result, code = gate.execute(NODE, NS, "audit", "evict", True, NODE)
+            self.assertEqual((result["status"], code),
+                             ("blocked_arc_owner_missing_or_changed", 3))
             run.assert_not_called()
 
     def test_changed_scoped_pod_identity_blocks_before_mutation(self):
