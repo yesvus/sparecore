@@ -66,6 +66,12 @@ class WorkerReadOnlyTests(unittest.TestCase):
         self.assertEqual(_guest_summary("worker-c")["vm"], "unknown")
 
     @patch("sparecore.worker_status._run")
+    def test_lima_names_with_dots_underscores_and_uppercase(self, run):
+        for name in ("Ubuntu-20.04", "example.com", "under_score"):
+            run.return_value = json.dumps(machine(name=name))
+            self.assertEqual(_guest_summary(name)["name"], name)
+
+    @patch("sparecore.worker_status._run")
     def test_invalid_vm_name_fails_without_command(self, run):
         self.assertEqual(_guest_summary("--bad")["vm"], "unknown")
         run.assert_not_called()
@@ -99,6 +105,13 @@ class WorkerReadOnlyTests(unittest.TestCase):
         self.assertEqual(result["step"], "start_vm")
         self.assertFalse(result["applied"])
 
+
+    def test_worker_cli_rejects_explicit_empty_input_conflict(self):
+        result = subprocess.run([sys.executable, "-m", "sparecore", "worker",
+                                 "--vm", "worker-b", "--input", ""],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("--vm is supported", result.stderr)
 
     def test_worker_cli_with_vm_is_read_only(self):
         out = subprocess.check_output([
