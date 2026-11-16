@@ -63,14 +63,23 @@ the owned Lima guest. It must not treat this one snapshot as a lease.
 
 ## Integration status
 
-The existing ops GitOps sources from PR #583/#584 include a target-node
-admission identity and a namespace-limited eviction identity. They are
-**manually registered and synced** through the ops Argo runbook after
-explicit approval, not deployed by merging this PR. The planned runner
-namespace is `arc-sparecore`; the `EphemeralRunner` Pod may require
-ARC-generated owner references and runtime policy verification. Keep this
-public script deployment-agnostic and use the existing official ARC scale
-set controller, GitOps and monitoring stack.
+The merged ops GitOps declarations from PR #583/#584 include node-scoped
+admission and namespace-scoped eviction roles. **As of 2026-11-16, the
+legacy Argo Application has not been registered or synced**: the RBAC
+identities and their workloads remain unapplied. An updated app-registry
+registration and separate ARC scale-set proposal is under review in ops
+PR #842; merging that PR would register new Argo Application objects,
+**not** sync RBAC or deploy runners.
+
+The operator supplies a dedicated trusted runner namespace (for example
+`<RUNNER_NAMESPACE>`); this public tool does not hard-code the pilot's
+namespace. The actual `EphemeralRunner` Pod must carry an official
+`actions.github.com/v1alpha1` controller owner reference, matching a live
+ARC CRD UID verified by the audit context. The audit identity also lists
+all current namespaces, and the eviction context must be denied eviction
+in **every other** current namespace. RBAC is still subject to change;
+inspect role bindings independently before permission grants or live use.
+Reuse existing ARC, GitOps and monitoring infrastructure.
 
 Unit tests verify context/identity guards, explicit confirmation,
 PDB/timeout uncertainty, changed Node or Pod state, interruption blocking,
