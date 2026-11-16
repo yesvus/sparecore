@@ -27,8 +27,11 @@ def _validate(value, kind):
         pattern = r"[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?"
     if not re.fullmatch(pattern, value):
         raise ValueError("Invalid " + kind)
-    if kind == "node" and any(len(x) > 63 for x in value.split(".")):
-        raise ValueError("Invalid node label")
+    if kind == "node" and any(
+            len(label) > 63 or not re.fullmatch(
+                r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", label)
+            for label in value.split(".")):
+        raise ValueError("Invalid Kubernetes Node label")
     return value
 
 
