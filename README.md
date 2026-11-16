@@ -4,8 +4,9 @@
 
 SpareCore is open-source, opt-in compute capacity management for user-owned devices.
 The first supported sensor platform is macOS: it observes power, CPU, memory pressure,
-swap traffic, thermals and idle time. Hostnames and cluster identities are deployment
-configuration, not required project names or hard-coded product concepts.
+swap traffic, thermals and idle time. The new manual admission fence accepts an explicit Kubernetes node identity;
+older local VM inspector and pilot examples are still name-specific until
+follow-up genericization in PR #17. No production deployment is implied.
 
 > **Pre-alpha / observe only.** The current menu displays hypothetical Off,
 > Light, and Boost eligibility. It does not start a VM, join Kubernetes, or run CI.
@@ -91,7 +92,7 @@ real-world latency tests are completed. Do not run untrusted CI on personal devi
 - [ ] Safe owner-priority VM/Node actuator, scoped GitOps RBAC and official ARC
 - [ ] Linux and rootless Termux adapters
 
-[Worker lifecycle (read-only)](docs/WORKER_LIFECYCLE.md) ·
+[Worker lifecycle and optional manual cordon](docs/WORKER_LIFECYCLE.md) ·
 [Architecture](docs/ARCHITECTURE.md) ·
 [Current Lima k3s pilot](docs/LIMA_PILOT.md) ·
 [Historical OrbStack pilot](docs/K3S_PILOT.md) ·
