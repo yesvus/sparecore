@@ -1,6 +1,6 @@
 # Manual guarded Lima VM control (macOS only)
 
-**Status: optional one-shot CLI; not installed, not wired to Hammerspoon.**
+**Status: optional one-shot CLI, available on Zombie; NOT wired to Hammerspoon.**
 This tool is a building block for [#11](https://github.com/yesvus/sparecore/issues/11),
 not an automatic ARC/k3s worker and not a complete crash-safe lifecycle.
 
@@ -60,8 +60,8 @@ On the trusted Linux host, an operator must configure a read-only
 using a preexisting cluster-side audit context. The command must verify
 the operator-provisioned exact `sparecore.dev/lima-vm` Node annotation;
 it must not manufacture `vm_binding_verified` or ignore mismatches.
-The command and any forced-command SSH parser are **not installed by this
-PR**, and the real Zombie Node's annotation has not been modified.
+The initial implementation PR does not install remote SSH access or alter
+live Node annotations. See the verified Zombie-specific pilot state below.
 A restricted SSH identity must not allow general shell or port forwarding.
 The Mac must use pinned SSH host keys. Never create such a key, copy
 kubeconfig, annotate a live Node or change SSH policy without separate
@@ -91,19 +91,63 @@ action, and PDB-aware evacuation from
 
 ## What remains before unattended Auto / On / Off
 
-1. An operator-reviewed exact Node-to-Lima VM annotation and trusted
-   restricted read-only SSH command; neither has been provisioned live.
-2. A strictly scoped, operator-reviewed cluster control path for
+1. A strictly scoped, operator-reviewed cluster control path for
    native cordon, safe uncordon, eviction/drain and final Pod inventory;
    no broad laptop credential or privileged custom scheduling service.
-3. Real macOS Hammerspoon mode/event integration, wake/sleep/AC loss
+2. Real macOS Hammerspoon mode/event integration, wake/sleep/AC loss
    behavior, restart-rate limiting and safe unknown-state handling.
-4. The dedicated trusted ARC namespace/scale-set credentials and
+3. The dedicated trusted ARC namespace/scale-set credentials and
    manually approved Argo sync from ops #842, and actual ephemeral CI
    job cancellation/retry/PDB validation.
-5. A minimum 48–72 hour real-device study of interactive latency, swap,
+4. A minimum 48–72 hour real-device study of interactive latency, swap,
    thermals, CPU load and battery impact. Node exporter/Prometheus
    integration should reuse the existing observability stack.
 
-**This CLI has only been validated by unit tests and Linux-host code review;
-there has been no real Mac VM start/stop, no Node mutation or live Pod eviction.**
+## Verified Zombie pilot checkpoint (2026-11-17)
+
+After explicit owner direction to investigate/repair the live Mac, the
+previously inert SSH trust prerequisites were configured **only** for Zombie
+and Gurbet:
+
+- Zombie is reachable over the existing tailnet; the macOS machine runs
+  Hammerspoon in `Auto` mode. At the checkpoint it reported `light` due
+  to active owner use; AC, normal memory pressure and nominal thermal state
+  were verified. The isolated 2 CPU / 2 GiB / 20 GiB Lima VZ guest named
+  `sparecore-zombie` remains `Stopped` by design.
+- The current SpareCore `main` code and its tests are present on both hosts.
+  A dedicated Zombie SSH identity named `sparecore-audit` is configured
+  for Gurbet with no agent forwarding, no TTY, a pinned host key and
+  `IdentitiesOnly yes`. **Crucially, `ControlMaster no`,
+  `ControlPath none`, and `ControlPersist no` are set**: Mac's existing
+  `ControlMaster auto` initially reused its unrelated unrestricted master
+  SSH connection, bypassing the new key's forced command. This was
+  diagnosed and fixed; unrelated command requests now return only the
+  read-only preflight response.
+- Gurbet's `~/.ssh/authorized_keys` has a single source-restricted
+  `restrict,command=...` entry for the dedicated key. The forced command
+  runs the **checked-in** `scripts/check-node-drain.py` with constant
+  `--node zombie --runner-namespace arc-sparecore --vm sparecore-zombie`
+  arguments. No general shell or cluster credentials are exposed **through
+  this identity**. The pre-existing general Mac → Gurbet SSH login remains
+  separate and is **not constrained by this new key**; do not mistake
+  a restricted alias for removal of all other host access.
+- A server-side dry-run and UID/resourceVersion-preconditioned patch
+  placed `sparecore.dev/lima-vm=sparecore-zombie` on existing Node
+  `zombie`. The Node was and remains cordoned and quarantined; the patch
+  changed only this annotation.
+- A real Zombie → Gurbet SSH probe returned the expected stable Node UID,
+  exact `bound_vm`, `vm_binding_verified=true`, cordon/taint checks and
+  **zero assigned Pods**. Real macOS one-shot CLI returned
+  `already_stopped` for a safe manual stop check and
+  `blocked_host_safety` for start during owner activity. No `--apply`
+  Lima action has been taken, and no new CI runner or uncordon occurred.
+
+The private SSH key stays on Zombie; do not copy it to Git, logs or issues.
+These manual host configurations are not a new autoscheduler. When rotating
+or revoking the access, remove only the dedicated
+`sparecore-readonly-zombie` authorized key on Gurbet and the
+`sparecore-audit` stanza/key on Zombie; keep unrelated SSH identities.
+
+**No real VM start/stop mutation, guest-agent activation, Kubernetes
+uncordon, runner dispatch, Pod eviction or PDB interruption test has
+occurred. The automatic lifecycle remains fail-closed and not deployed.**
